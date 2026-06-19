@@ -404,7 +404,8 @@ class ServerManager:
                 # 检查日期是否切换
                 new_date = time.localtime().tm_mday
                 if new_date != current_date:
-                    logger.info(f"检测到日期切换: {current_date} -> {new_date}，自动执行服务器重启...")
+                    logger.info(
+                        f"检测到日期切换: {current_date} -> {new_date}，自动执行服务器重启...")
                     current_date = new_date
                     # 执行重启命令
                     self.execute_command('restart')
@@ -427,6 +428,8 @@ class ServerManager:
 
             # 初始化基本配置和日志输出
             self.flask_app.config['BASE_DIRECTORY'] = FILE_EXPLORER_BASE_DIR
+            self.flask_app.config['MAX_CONTENT_LENGTH'] = 10 * \
+                1024 * 1024 * 1024
             file_explorer.logger = LoggerManager(
                 logger_name='file_explorer', file_name='file_explorer',
                 web_callback=self.add_output_to_web_console,
@@ -451,7 +454,12 @@ class ServerManager:
 
             waitress.serve(
                 self.flask_app, host='0.0.0.0',
-                port=WEB_SERVER_PORT, threads=WEB_SERVER_THREADS
+                port=WEB_SERVER_PORT, threads=WEB_SERVER_THREADS,
+                max_request_body_size=10 * 1024 * 1024 * 1024,  # 10GB 最大请求体大小
+                connection_limit=200,  # 提高连接限制
+                channel_timeout=300,   # 连接超时时间（秒），默认120秒，改为5分钟
+                inbuf_overflow=1024 * 1024,  # 输入缓冲区溢出阈值
+                outbuf_overflow=1024 * 1024  # 输出缓冲区溢出阈值
             )
 
         except Exception as e:
