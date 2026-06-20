@@ -25,10 +25,7 @@ import servers.web.web_console as web_console
 import servers.localproxy_server as localproxy_server
 import servers.news_downloader as news_downloader
 
-from assets.config_server import *
-from utils.utils_lib import Utils
-from utils.utils_lib import ConfigManager
-from utils.utils_lib import LoggerManager
+from utils.utils_lib import Utils, ConfigManager, LoggerManager
 
 Utils.sync_work_dir()
 logger = LoggerManager(
@@ -36,6 +33,9 @@ logger = LoggerManager(
     file_name='server_launcher',
     console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[服务器] %(message)s'
 )
+config_manager = ConfigManager(
+    logger, deft_cfgs={}, cfg_file='config_server.jsonc')
+config_manager.load_configs()
 Utils.setup_except_hook(logger)
 
 
@@ -188,11 +188,12 @@ class ServerManager:
         async with websockets.serve(
             self.handle_websocket,
             '0.0.0.0',
-            WEBSOCKET_PORT,
+            config_manager.cfgs.get('websocket_port', 8889),
             ping_interval=30,
             ping_timeout=10
         ):
-            logger.info(f"WebSocket服务器已启动在端口: {WEBSOCKET_PORT}")
+            logger.info(
+                f"WebSocket服务器已启动在端口: {config_manager.cfgs.get('websocket_port', 8889)}")
             await asyncio.Future()  # 永久运行
 
     def run_websocket_server(self):
@@ -345,19 +346,25 @@ class ServerManager:
         """运行FTP服务器"""
         try:
             # 确保FTP目录存在
-            if not os.path.exists(FTP_DIRECTORY):
-                os.makedirs(FTP_DIRECTORY)
-                logger.info(f"创建FTP目录: {FTP_DIRECTORY}")
+            ftp_directory = config_manager.cfgs.get('ftp_directory', '/')
+            if not os.path.exists(ftp_directory):
+                os.makedirs(ftp_directory)
+                logger.info(f"创建FTP目录: {ftp_directory}")
 
             # 创建授权器
             authorizer = DummyAuthorizer()
             # 添加主用户，用于访问主目录
             authorizer.add_user(
-                FTP_USERNAME, FTP_PASSWORD, FTP_DIRECTORY, perm="elradfmwMT",
+                config_manager.cfgs.get('ftp_username', 'user'),
+                config_manager.cfgs.get('ftp_password', '123456'),
+                ftp_directory, perm="elradfmwMT",
             )
             # 添加USB用户，用于访问USB
             authorizer.add_user(
-                FTP_USB_USERNAME, FTP_USB_PASSWORD, FTP_USB_DIRECTORY, perm="elradfmwMT",
+                config_manager.cfgs.get('ftp_usb_username', 'user'),
+                config_manager.cfgs.get('ftp_usb_password', '123456'),
+                config_manager.cfgs.get('ftp_usb_directory', '/'),
+                perm="elradfmwMT",
             )
 
             # 配置FTP日志输出
@@ -366,7 +373,7 @@ class ServerManager:
             logging.getLogger('pyftpdlib').propagate = False
 
             # 创建FTP服务器并运行
-            address = ("0.0.0.0", FTP_PORT)
+            address = ("0.0.0.0", config_manager.cfgs.get('ftp_port', 2121))
             FTPHandler.authorizer = authorizer
             server = FTPServer(address, FTPHandler)
             server.serve_forever()
@@ -412,7 +419,9 @@ class ServerManager:
 
                 # 检查是否需要输出系统信息
                 current_time = time.time()
-                if current_time - last_output_time >= SYSTEM_MONITOR_FREQ:
+                system_monitor_freq = float(config_manager.cfgs.get(
+                    'system_monitor_freq', 60))
+                if current_time - last_output_time >= system_monitor_freq:
                     # 更新上次输出时间
                     last_output_time = current_time
 
@@ -427,24 +436,50 @@ class ServerManager:
             self.flask_app = Flask(__name__)
 
             # 初始化基本配置和日志输出
-            self.flask_app.config['BASE_DIRECTORY'] = FILE_EXPLORER_BASE_DIR
+            self.flask_app.config['BASE_DIRECTORY'] = config_manager.cfgs.get(
+                'file_explorer_base_dir', '/')
             self.flask_app.config['MAX_CONTENT_LENGTH'] = 10 * \
                 1024 * 1024 * 1024
+
             file_explorer.logger = LoggerManager(
                 logger_name='file_explorer', file_name='file_explorer',
                 web_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[文件浏览器] %(message)s'
             )
+            file_explorer.FILE_EXPLORER_NEWS_DIR_BASENAME = config_manager.cfgs.get(
+                'file_explorer_news_dir_basename', '新闻'
+            )
+            file_explorer.FILE_EXPLORER_ALLOWED_IPS = config_manager.cfgs.get(
+                'file_explorer_allowed_ips', []
+            )
+            file_explorer.FILE_EXPLORER_ALLOWED_WEEKDAYS = config_manager.cfgs.get(
+                'file_explorer_allowed_weekdays', []
+            )
+            file_explorer.UPLOAD_FILE_MIN_FREE_SPACE = config_manager.cfgs.get(
+                'upload_file_min_free_space', 0
+            )
+
             web_console.logger = LoggerManager(
                 logger_name='web_console', file_name='web_console',
                 web_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[网页控制台] %(message)s'
             )
+            web_console.WEB_CONSOLE_USERNAME = config_manager.cfgs.get(
+                'web_console_username', 'admin')
+            web_console.WEB_CONSOLE_PASSWORD = config_manager.cfgs.get(
+                'web_console_password', '123456')
+            web_console.WEBSOCKET_PORT = config_manager.cfgs.get(
+                'websocket_port', 8889)
+
             localproxy_server.logger = LoggerManager(
                 logger_name='localproxy_server', file_name='localproxy_server',
                 web_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[LocalProxy] %(message)s'
             )
+            localproxy_server.LOCALPROXY_USERNAME = config_manager.cfgs.get(
+                'localproxy_username', 'user')
+            localproxy_server.LOCALPROXY_PASSWORD = config_manager.cfgs.get(
+                'localproxy_password', '123456')
 
             # 注册蓝图
             self.flask_app.register_blueprint(file_explorer.file_explorer)
@@ -454,7 +489,8 @@ class ServerManager:
 
             waitress.serve(
                 self.flask_app, host='0.0.0.0',
-                port=WEB_SERVER_PORT, threads=WEB_SERVER_THREADS,
+                port=config_manager.cfgs.get('web_server_port', 8888),
+                threads=config_manager.cfgs.get('web_server_threads', 5),
                 max_request_body_size=10 * 1024 * 1024 * 1024,  # 10GB 最大请求体大小
                 connection_limit=200,  # 提高连接限制
                 channel_timeout=300,   # 连接超时时间（秒），默认120秒，改为5分钟
@@ -530,8 +566,11 @@ class ServerManager:
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[新闻下载器] %(message)s'
             )
             news_downloader.run_downloader(
-                output_dir=NEWS_SAVE_DIR, speed=NEWS_SPEED, proxy="",
-                download_past_days=0, max_workers=1, schedule_time=NEWS_SCHEDULE_TIME
+                output_dir=config_manager.cfgs.get('news_save_dir', '/新闻'),
+                speed=config_manager.cfgs.get('news_speed', 1.8), proxy="",
+                download_past_days=0, max_workers=1,
+                schedule_time=config_manager.cfgs.get(
+                    'news_schedule_time', '16:00:00'),
             )
 
         except Exception as e:
@@ -553,9 +592,20 @@ class ServerManager:
             self.web_server_thread = threading.Thread(
                 target=self.run_web_server, name='web_server', daemon=True)
             self.web_server_thread.start()
+
+            web_server_port = config_manager.cfgs.get(
+                'web_server_port', 8888)
+            web_console_username = config_manager.cfgs.get(
+                'web_console_username', 'admin')
+            web_console_password = config_manager.cfgs.get(
+                'web_console_password', '123456')
+            localproxy_username = config_manager.cfgs.get(
+                'localproxy_username', 'admin')
+            localproxy_password = config_manager.cfgs.get(
+                'localproxy_password', '123456')
             logger.info(
-                f"网页服务器已启动在端口: {WEB_SERVER_PORT}, 控制台用户名: {WEB_CONSOLE_USERNAME}, 控制台密码: {WEB_CONSOLE_PASSWORD}; " +
-                f"LocalProxy官网用户名: {LOCALPROXY_USERNAME}, LocalProxy官网密码: {LOCALPROXY_PASSWORD}"
+                f"网页服务器已启动在端口: {web_server_port}, 控制台用户名: {web_console_username}, 控制台密码: {web_console_password}; " +
+                f"LocalProxy官网用户名: {localproxy_username}, LocalProxy官网密码: {localproxy_password}"
             )
 
             # 启动WebSocket服务器
@@ -569,8 +619,15 @@ class ServerManager:
             self.ftp_server_thread = threading.Thread(
                 target=self.run_ftp_server, name='ftp_server', daemon=True)
             self.ftp_server_thread.start()
+
+            ftp_port = config_manager.cfgs.get('ftp_port', 2121)
+            ftp_username = config_manager.cfgs.get('ftp_username', 'user')
+            ftp_password = config_manager.cfgs.get('ftp_password', '123456')
+            ftp_directory = config_manager.cfgs.get('ftp_directory', '/')
+            ftp_usb_directory = config_manager.cfgs.get(
+                'ftp_usb_directory', '/')
             logger.info(
-                f"FTP服务器已启动在端口: {FTP_PORT}, 用户名: {FTP_USERNAME}, 密码: {FTP_PASSWORD}, 根目录: {FTP_DIRECTORY}, USB目录: {FTP_USB_DIRECTORY}")
+                f"FTP服务器已启动在端口: {ftp_port}, 用户名: {ftp_username}, 密码: {ftp_password}, 根目录: {ftp_directory}, USB目录: {ftp_usb_directory}")
 
             # 启动HTTP服务器
             logger.info("正在启动HTTP服务器...")
@@ -649,7 +706,7 @@ class ServerManager:
         elif command == 'restart':
             logger.info("正在重启服务器...")
 
-            # 脚本模式下需要先从数据目录回退到根目录
+            # 脚本模式下需要先从资源目录回退到根目录
             if not Utils.is_package_mode():
                 base_dir = os.path.dirname(Utils.get_bundle_dir())
                 os.chdir(base_dir)

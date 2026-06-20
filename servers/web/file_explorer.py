@@ -6,19 +6,13 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 
 import urllib.parse
-from assets.config_server import (
-    FILE_EXPLORER_ALLOWED_IPS,
-    FILE_EXPLORER_ALLOWED_WEEKDAYS,
-    FILE_EXPLORER_NEWS_DIR_BASENAME,
-    UPLOAD_FILE_MIN_FREE_SPACE
-)
 from werkzeug.security import safe_join
 from flask import Blueprint, Response, make_response, send_file, jsonify, current_app, request
-from utils.utils_lib import LoggerManager
+from utils.utils_lib import LoggerManager, Utils
 
 # 初始化蓝图
 file_explorer = Blueprint('file_explorer', __name__, url_prefix='/')
-logger: LoggerManager = LoggerManager()
+logger: LoggerManager = LoggerManager(no_file_handler=True)
 
 # 配置常量
 TEXT_FILE_EXTENSIONS = {
@@ -30,6 +24,11 @@ TEXT_FILE_EXTENSIONS = {
 }
 ILLEGAL_FILENAME_CHARS = r'<>:"/\\|?*'
 MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 限制单文件上传最大大小
+
+FILE_EXPLORER_NEWS_DIR_BASENAME = '新闻'
+FILE_EXPLORER_ALLOWED_IPS = []
+FILE_EXPLORER_ALLOWED_WEEKDAYS = []
+UPLOAD_FILE_MIN_FREE_SPACE = 0
 
 
 def get_base_directory() -> str:
@@ -161,7 +160,9 @@ def index():
     if permission_err:
         return jsonify(permission_err[0]), permission_err[1]
 
-    html_file = os.path.abspath('file_explorer.html')
+    html_file = os.path.join(
+        Utils.get_bundle_dir(), 'web', 'file_explorer.html'
+    )
     if os.path.exists(html_file):
         return send_file(html_file)
     else:
@@ -179,7 +180,7 @@ def news_page():
         logger.warning(f'IP {client_ip} 对新闻播放页的访问被禁止：不在白名单')
         return "禁止访问：IP不在白名单", 403
 
-    html_file = os.path.abspath('file_explorer.html')
+    html_file = os.path.join(Utils.get_bundle_dir(), 'file_explorer.html')
     if os.path.exists(html_file):
         return send_file(html_file)
     else:
@@ -301,6 +302,8 @@ def serve_file(filepath=''):
             # 替换原有Content-Disposition，使用编码后的文件名
             response.headers['Content-Disposition'] = f'inline; filename="{encoded_filename}"; filename*=UTF-8\'\'{encoded_filename}'
             return response
+        elif f'{FILE_EXPLORER_NEWS_DIR_BASENAME}/' in filepath:
+            return send_file(full_path)
         else:
             # 手动流式返回，预先计算Content-Length，避开seek(0,2)溢出
             file_size = os.path.getsize(full_path)

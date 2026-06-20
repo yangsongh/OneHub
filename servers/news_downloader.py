@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from utils.utils_lib import LoggerManager
 from typing import Dict, List, Optional, Tuple
 
-logger: LoggerManager = LoggerManager()
+logger: LoggerManager = LoggerManager(no_file_handler=True)
 
 
 class VideoDownloader:
@@ -187,7 +187,8 @@ class VideoDownloader:
             "no_part": True,                            # 禁用.part文件
             "keep_fragments": False,                    # 不保留分片
             "hls_prefer_native": False,                 # 禁用 yt-dlp 原生 HLS 下载器（它容易产生碎片）
-            "downloader": {"hls": "ffmpeg"},            # 改用 FFmpeg 直接拉流合并，不产生分片文件
+            # 改用 FFmpeg 直接拉流合并，不产生分片文件
+            "downloader": {"hls": "ffmpeg"},
         }
 
         try:

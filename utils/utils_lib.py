@@ -44,7 +44,7 @@ class LoggerManager:
     def __init__(self, logger_name: Union[str, None] = 'default', file_name: Union[str, None] = None,
                  file_format_str: str = '%(asctime)s %(levelname)1.1s %(filename)s:%(lineno)d %(message)s',
                  console_format_str: str = '%(asctime)s %(filename)s:%(lineno)d-%(funcName)s %(log_color)s%(message)s',
-                 console_handler_level=INFO, file_handler_level=INFO,
+                 console_handler_level=INFO, file_handler_level=INFO, no_file_handler=False,
                  web_callback: Optional[Callable[[str], None]] = None):
         self.logger = logging.getLogger(logger_name)
         self.logger.propagate = False  # 阻止传播到 root
@@ -52,12 +52,13 @@ class LoggerManager:
         self.logger.handlers.clear()  # 防止重复输出
 
         # 文件处理器
-        file_formatter = logging.Formatter(file_format_str)
-        file_handler = logging.FileHandler(self.get_log_file_path(
-            file_name), mode='a', encoding='utf-8')
-        file_handler.setFormatter(file_formatter)
-        file_handler.setLevel(file_handler_level)  # 文件日志输出等级
-        self.logger.addHandler(file_handler)
+        if not no_file_handler:
+            file_formatter = logging.Formatter(file_format_str)
+            file_handler = logging.FileHandler(self.get_log_file_path(
+                file_name), mode='a', encoding='utf-8')
+            file_handler.setFormatter(file_formatter)
+            file_handler.setLevel(file_handler_level)  # 文件日志输出等级
+            self.logger.addHandler(file_handler)
 
         # 控制台处理器（带颜色）
         console_formatter = ColoredFormatter(

@@ -1,11 +1,15 @@
 import os
 from functools import wraps
 from flask import Blueprint, Response, jsonify, request, send_file
-from assets.config_server import WEB_CONSOLE_USERNAME, WEB_CONSOLE_PASSWORD, WEBSOCKET_PORT
-from utils.utils_lib import LoggerManager
+from utils.utils_lib import LoggerManager, Utils
 
 web_console = Blueprint('web_console', __name__, url_prefix='/console')
-logger:LoggerManager = LoggerManager()
+logger: LoggerManager = LoggerManager(no_file_handler=True)
+
+WEB_CONSOLE_USERNAME = 'user'
+WEB_CONSOLE_PASSWORD = '123456'
+WEBSOCKET_PORT = 8889
+
 
 def require_auth(f):
     """
@@ -14,7 +18,8 @@ def require_auth(f):
     def check_auth(username, password):
         authed = username == WEB_CONSOLE_USERNAME and password == WEB_CONSOLE_PASSWORD
         if not authed:
-            logger.warning(f"IP {request.remote_addr} 认证失败：用户名 {username}, 密码 {password}")
+            logger.warning(
+                f"IP {request.remote_addr} 认证失败：用户名 {username}, 密码 {password}")
         return authed
 
     @wraps(f)
@@ -34,10 +39,12 @@ def require_auth(f):
 @web_console.route('/')
 @require_auth
 def index():
-    """主页路由"""
+    """控制台主页路由"""
     logger.info(f'IP {request.remote_addr} 尝试访问网页控制台')
 
-    html_file = os.path.abspath('console.html')
+    html_file = os.path.join(
+        Utils.get_bundle_dir(), 'web', 'console.html'
+    )
     if os.path.exists(html_file):
         return send_file(html_file)
     else:

@@ -2,10 +2,9 @@
 import os
 import json5
 from flask import Blueprint, Response, request, jsonify, send_from_directory
-from assets.config_server import LOCALPROXY_PASSWORD, LOCALPROXY_USERNAME
 from utils.utils_lib import LoggerManager
 
-WEB_FOLDER = 'localproxy_web'
+WEB_FOLDER = 'localproxy'
 ICONS_FOLDER = os.path.join(WEB_FOLDER, 'icons')
 NOTICE_BOARD_FOLDER = os.path.join(WEB_FOLDER, 'noticeboard')
 
@@ -14,10 +13,14 @@ CONFIG_OLD_FILE = 'config_client_old.jsonc'
 
 VERSION_CODE = 202606121
 
+LOCALPROXY_USERNAME = 'user'
+LOCALPROXY_PASSWORD = '123456'
+
 localproxy_server = Blueprint(
     'localproxy_server', __name__, url_prefix='/localproxy'
 )
-logger:LoggerManager = LoggerManager()
+logger: LoggerManager = LoggerManager(no_file_handler=True)
+
 
 def require_auth(f):
     """
@@ -26,7 +29,8 @@ def require_auth(f):
     def check_auth(username, password):
         authed = username == LOCALPROXY_USERNAME and password == LOCALPROXY_PASSWORD
         if not authed:
-            logger.warning(f"IP {request.remote_addr} 认证失败：用户名 {username}, 密码 {password}")
+            logger.warning(
+                f"IP {request.remote_addr} 认证失败：用户名 {username}, 密码 {password}")
         return authed
 
     @wraps(f)
@@ -41,6 +45,7 @@ def require_auth(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
 
 @localproxy_server.route('/')
 @require_auth
@@ -60,9 +65,9 @@ def get_config():
     """
     GET /get_config
     读取本地客户端配置文件，并根据ver参数返回不同版本。
-    
+
     /get_config?ver=最新版本号: 返回config_client.jsonc
-    /get_config?ver=其他值或不带version: 返回config_client_old.jsonc
+    /get_config?ver=其他值或不带version，且旧配置文件存在: 返回config_client_old.jsonc
     """
     try:
         client_ip = request.remote_addr
@@ -72,9 +77,10 @@ def get_config():
         ver = request.args.get('ver', '')
 
         # 根据版本参数选择配置文件
-        if ver == str(VERSION_CODE):
-            config_file = CONFIG_FILE
-        else:
+        config_file = CONFIG_FILE
+
+        # 旧配置文件存在就用旧的，不存在就继续用新的
+        if ver != str(VERSION_CODE) and os.path.exists(CONFIG_OLD_FILE):
             config_file = CONFIG_OLD_FILE
 
         if not os.path.exists(config_file):
