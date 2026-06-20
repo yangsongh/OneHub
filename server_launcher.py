@@ -685,8 +685,8 @@ class ServerManager:
                 logger.info("收到中断信号，正在停止...")
                 break
             except EOFError:
-                # 遇到EOF，只打日志，不退出，忽略异常继续循环
-                logger.warning("检测到EOF输入，忽略本次输入")
+                # 遇到EOF，忽略异常继续循环
+                time.sleep(1)
                 continue
 
     def execute_command(self, command: str):

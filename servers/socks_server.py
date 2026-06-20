@@ -279,45 +279,105 @@ class SocksProxyServer:
         inputs = [client_socket, target_socket]
         outputs = []
 
-        while inputs:
+        # 标记套接字是否已关闭
+        client_closed = False
+        target_closed = False
+
+        while inputs and not (client_closed and target_closed):
             try:
                 readable, writable, exceptional = select.select(
                     inputs, outputs, inputs, 1.0)  # 1秒超时
 
                 for s in readable:
-                    data = s.recv(4096)
-                    if not data:
-                        # 连接关闭
-                        inputs.remove(s)
+                    try:
+                        # 接收数据前先检查套接字是否有效
+                        if s.fileno() == -1:
+                            raise OSError("Socket has been closed")
+
+                        data = s.recv(4096)
+                        if not data:
+                            # 连接关闭：标记对应套接字状态，移除监听
+                            if s is client_socket:
+                                client_closed = True
+                                if target_socket.fileno() != -1:
+                                    try:
+                                        target_socket.shutdown(socket.SHUT_WR)
+                                    except:
+                                        pass
+                            else:
+                                target_closed = True
+                                if client_socket.fileno() != -1:
+                                    try:
+                                        client_socket.shutdown(socket.SHUT_WR)
+                                    except:
+                                        pass
+                            inputs.remove(s)
+                            continue
+
+                        # 转发数据时检查目标套接字状态
+                        if s is client_socket and not target_closed:
+                            if target_socket.fileno() != -1:
+                                target_socket.sendall(data)
+                        elif s is target_socket and not client_closed:
+                            if client_socket.fileno() != -1:
+                                client_socket.sendall(data)
+
+                    except (ConnectionResetError, BrokenPipeError, OSError) as e:
+                        # 捕获连接重置/管道破裂/套接字关闭异常
+                        self.logger.debug(f"数据转发异常: {repr(e)}")
                         if s is client_socket:
-                            target_socket.shutdown(socket.SHUT_WR)
+                            client_closed = True
                         else:
-                            client_socket.shutdown(socket.SHUT_WR)
+                            target_closed = True
+                        if s in inputs:
+                            inputs.remove(s)
                         continue
 
-                    # 将数据转发到另一个socket
-                    if s is client_socket:
-                        target_socket.sendall(data)
-                    else:
-                        client_socket.sendall(data)
-
+                # 处理异常套接字（连接出错/超时等）
                 for s in exceptional:
-                    inputs.remove(s)
+                    self.logger.debug(
+                        f"套接字异常，关闭连接: {s.getpeername() if s.fileno() != -1 else 'closed socket'}")
+                    if s in inputs:
+                        inputs.remove(s)
                     if s in outputs:
                         outputs.remove(s)
-                    s.close()
+                    try:
+                        s.shutdown(socket.SHUT_RDWR)
+                        s.close()
+                    except:
+                        pass
+                    if s is client_socket:
+                        client_closed = True
+                    else:
+                        target_closed = True
 
             except (socket.error, OSError) as e:
-                if hasattr(e, 'errno') and e.errno == errno.ECONNRESET:
-                    # 静默处理 select 层面的连接重置
-                    pass
+                # 过滤已知的无害错误，仅记录未预期的异常
+                errno_code = e.errno if hasattr(e, 'errno') else -1
+                if errno_code in [errno.ECONNRESET, errno.EPIPE, errno.ENOTCONN]:
+                    self.logger.debug(f"Select处理已知异常: {repr(e)}")
                 else:
                     self.logger.error(f"Select出错: {e}")
                 break
 
-        # 清理连接
-        client_socket.close()
-        target_socket.close()
+        # 最终清理连接（确保套接字关闭）
+        try:
+            client_socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            client_socket.close()
+        except:
+            pass
+
+        try:
+            target_socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            target_socket.close()
+        except:
+            pass
 
     def log_thread_count(self):
         """记录当前线程数量"""
