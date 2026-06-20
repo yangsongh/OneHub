@@ -6,20 +6,20 @@
       "args": [
         "-NoExit",
         // "-Command",
-        "${env:PYTHON_VENV_DIR}\\ServerLauncher\\Scripts\\Activate.ps1"
+        "${env:PYTHON_VENV_DIR}\\OneHub\\Scripts\\Activate.ps1"
       ]
     },
     "Command Prompt": {
       "path": "cmd.exe",
       "args": [
         "/k",
-        "%PYTHON_VENV_DIR%\\ServerLauncher\\Scripts\\activate.bat"
+        "%PYTHON_VENV_DIR%\\OneHub\\Scripts\\activate.bat"
       ],
       "icon": "terminal-cmd"
     }
   },
   "terminal.integrated.defaultProfile.windows": "Command Prompt",
-  "python.defaultInterpreterPath": "${env:PYTHON_VENV_DIR}\\ServerLauncher\\Scripts\\python.exe",
+  "python.defaultInterpreterPath": "${env:PYTHON_VENV_DIR}\\OneHub\\Scripts\\python.exe",
   "python.terminal.activateEnvironment": true,
   "python.analysis.diagnosticSeverityOverrides": {
     "reportIncompatibleMethodOverride": "none"
