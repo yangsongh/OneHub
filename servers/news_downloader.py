@@ -492,7 +492,7 @@ def run_task(output_dir: Path, speed: float, proxy: str,
 
 
 def run_downloader(output_dir: Path, speed: float, proxy: str,
-                   download_past_days: int, max_workers: int, schedule_time: str):
+                   download_past_days: int, max_workers: int, schedule_time: str, run_immediately = False):
     """启动下载器"""
     output_dir = Path(output_dir).absolute()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -513,10 +513,14 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
     last_execution_date = None
 
     # 立即执行一次下载任务
-    successful_count = run_task(
-        output_dir, speed, proxy,
-        download_past_days, max_workers
-    )
+    if run_immediately:
+        successful_count = run_task(
+            output_dir, speed, proxy,
+            download_past_days, max_workers
+        )
+    else:
+        successful_count = 0
+        
     # 今日视频已下载，不再重复下载
     if successful_count == 1 and download_past_days == 0:
         last_execution_date = datetime.now().date()

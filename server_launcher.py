@@ -438,8 +438,8 @@ class ServerManager:
             # 初始化基本配置和日志输出
             self.flask_app.config['BASE_DIRECTORY'] = config_manager.cfgs.get(
                 'file_explorer_base_dir', '/')
-            self.flask_app.config['MAX_CONTENT_LENGTH'] = 10 * \
-                1024 * 1024 * 1024
+            MAX_UPLOAD_SIZE = 1.8 * 1024 * 1024 * 1024  # 1.8GB
+            self.flask_app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 
             file_explorer.logger = LoggerManager(
                 logger_name='file_explorer', file_name='file_explorer',
@@ -491,11 +491,8 @@ class ServerManager:
                 self.flask_app, host='0.0.0.0',
                 port=config_manager.cfgs.get('web_server_port', 8888),
                 threads=config_manager.cfgs.get('web_server_threads', 5),
-                max_request_body_size=10 * 1024 * 1024 * 1024,  # 10GB 最大请求体大小
-                connection_limit=200,  # 提高连接限制
-                channel_timeout=300,   # 连接超时时间（秒），默认120秒，改为5分钟
-                inbuf_overflow=1024 * 1024,  # 输入缓冲区溢出阈值
-                outbuf_overflow=1024 * 1024  # 输出缓冲区溢出阈值
+                max_request_body_size=MAX_UPLOAD_SIZE,
+                connection_limit=500,  # 连接限制
             )
 
         except Exception as e:

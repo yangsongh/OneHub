@@ -18,7 +18,7 @@
     "ftp_usb_directory": "/mnt/media_rw/sdcard0/", // 根目录
 
     // 网页服务器配置（网盘+网页控制台+LocalProxy服务端）
-    "web_server_threads": 5, // 线程数，越大访问网页速度越快，但也更占用CPU资源
+    "web_server_threads": 10, // 线程数，越大访问网页速度越快，但也更占用CPU资源
     "web_server_port": 8888, // 端口号
 
     // 网页控制台配置

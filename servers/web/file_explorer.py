@@ -1,5 +1,6 @@
 import errno
 import os
+import re
 import shutil
 import chardet
 from typing import Dict, List, Any, Optional, Tuple
@@ -23,7 +24,7 @@ TEXT_FILE_EXTENSIONS = {
     '.fs', '.clj', '.hs', '.erl', '.ex', '.cr', '.nim', '.zig'
 }
 ILLEGAL_FILENAME_CHARS = r'<>:"/\\|?*'
-MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024 * 1024  # 限制单文件上传最大大小
+MAX_UPLOAD_SIZE = 1.8 * 1024 * 1024 * 1024  # 限制单文件上传最大大小
 
 FILE_EXPLORER_NEWS_DIR_BASENAME = '新闻'
 FILE_EXPLORER_ALLOWED_IPS = []
@@ -180,7 +181,9 @@ def news_page():
         logger.warning(f'IP {client_ip} 对新闻播放页的访问被禁止：不在白名单')
         return "禁止访问：IP不在白名单", 403
 
-    html_file = os.path.join(Utils.get_bundle_dir(), 'file_explorer.html')
+    html_file = os.path.join(
+        Utils.get_bundle_dir(), 'web', 'file_explorer.html'
+    )
     if os.path.exists(html_file):
         return send_file(html_file)
     else:
@@ -296,18 +299,22 @@ def serve_file(filepath=''):
         filename = os.path.basename(full_path)  # 提取文件名
         # 对文件名进行URL编码（兼容RFC 5987）
         encoded_filename = urllib.parse.quote(filename, encoding='utf-8')
+        file_size = os.path.getsize(full_path)
+        # 1GB 字节阈值
+        GB_THRESHOLD = 1 * 1024 * 1024 * 1024
 
+        # 文本格式，转码+浏览器内预览
         if is_text_file(full_path):
             response = convert_and_send_text_file(full_path)
             # 替换原有Content-Disposition，使用编码后的文件名
             response.headers['Content-Disposition'] = f'inline; filename="{encoded_filename}"; filename*=UTF-8\'\'{encoded_filename}'
             return response
-        elif f'{FILE_EXPLORER_NEWS_DIR_BASENAME}/' in filepath:
-            return send_file(full_path)
+        # 判断文件大小：小于1GB直接使用send_file
+        elif file_size < GB_THRESHOLD:
+            resp = send_file(full_path)
+            return resp
+        # 大文件自定义流式输出，直接下载
         else:
-            # 手动流式返回，预先计算Content-Length，避开seek(0,2)溢出
-            file_size = os.path.getsize(full_path)
-
             def stream_large_file():
                 chunk_size = 1024 * 1024  # 1MB分片
                 with open(full_path, "rb") as f:
@@ -387,10 +394,10 @@ def upload(dirpath=''):
 
                 # 实时校验文件大小，避免超过限制
                 total_size += len(chunk)
-                if total_size > MAX_UPLOAD_FILE_SIZE:
+                if total_size > MAX_UPLOAD_SIZE:
                     # 删除已写入的临时文件
                     os.remove(full_path)
-                    max_size_gb = MAX_UPLOAD_FILE_SIZE / 1024 / 1024 / 1024
+                    max_size_gb = MAX_UPLOAD_SIZE / 1024 / 1024 / 1024
                     return jsonify({
                         'success': False,
                         'error': f'文件大小超过限制（最大{max_size_gb}GB）'
