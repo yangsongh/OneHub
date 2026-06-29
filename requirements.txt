@@ -1,10 +1,10 @@
-cffi        # yt-dlp依赖
-waitress    # 网站生产服务器
-flask       # 网站框架
-pyftpdlib   # FTP服务器
-json5       # 解析jsonc文件
-colorlog    # 彩色控制台输出
-websockets  # 网页控制台连接
-chardet     # 文件编码检测+转换
-yt-dlp	    # 下载新闻
-requests    # 下载新闻
+cffi
+waitress
+flask
+pyftpdlib
+json5
+colorlog
+websockets
+chardet
+yt-dlp
+requests

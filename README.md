@@ -70,9 +70,9 @@ git clone https://github.com/yangsongh/OneHub.git
 cd onehub
 
 # 2. 创建并激活虚拟环境 (推荐)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或 venv\Scripts\activate  # Windows
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# 或 .venv\Scripts\activate  # Windows
 
 # 3. 安装依赖
 pip install -r requirements.txt

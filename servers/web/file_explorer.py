@@ -1,6 +1,5 @@
-import errno
 import os
-import re
+import errno
 import shutil
 import chardet
 from typing import Dict, List, Any, Optional, Tuple
@@ -24,12 +23,12 @@ TEXT_FILE_EXTENSIONS = {
     '.fs', '.clj', '.hs', '.erl', '.ex', '.cr', '.nim', '.zig'
 }
 ILLEGAL_FILENAME_CHARS = r'<>:"/\\|?*'
-MAX_UPLOAD_SIZE = 1.8 * 1024 * 1024 * 1024  # 限制单文件上传最大大小
 
-FILE_EXPLORER_NEWS_DIR_BASENAME = '新闻'
-FILE_EXPLORER_ALLOWED_IPS = []
-FILE_EXPLORER_ALLOWED_WEEKDAYS = []
+NEWS_DIR_BASENAME = '新闻'
+ALLOWED_IPS = []
+ALLOWED_WEEKDAYS = []
 UPLOAD_FILE_MIN_FREE_SPACE = 0
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 
 
 def get_base_directory() -> str:
@@ -59,11 +58,11 @@ def sanitize_filename(filename: str) -> str:
 def check_access_permission(client_ip: Optional[str], path: str = '') -> Optional[Tuple[Dict[str, Any], int]]:
     """统一权限校验函数，返回None表示有权限，否则返回错误响应数据"""
     # 新闻目录始终允许访问
-    if FILE_EXPLORER_NEWS_DIR_BASENAME in path:
+    if NEWS_DIR_BASENAME in path:
         return None
 
     # IP白名单校验
-    if client_ip not in FILE_EXPLORER_ALLOWED_IPS:
+    if client_ip not in ALLOWED_IPS:
         logger.warning(f'IP {client_ip} 访问被禁止：不在白名单')
         return {
             'success': False,
@@ -72,11 +71,11 @@ def check_access_permission(client_ip: Optional[str], path: str = '') -> Optiona
 
     # 星期限制校验
     weekday_num = datetime.now().isoweekday()
-    if weekday_num not in FILE_EXPLORER_ALLOWED_WEEKDAYS:
+    if weekday_num not in ALLOWED_WEEKDAYS:
         logger.warning(f'IP {client_ip} 访问被禁止：网站当前未开放')
         return {
             'success': False,
-            'error': f'本网站仅在星期{FILE_EXPLORER_ALLOWED_WEEKDAYS}开放。'
+            'error': f'本网站仅在星期{ALLOWED_WEEKDAYS}开放。'
         }, 400
 
     return None
@@ -177,7 +176,7 @@ def news_page():
     client_ip = request.remote_addr
     logger.info(f'IP {client_ip} 尝试访问新闻播放页')
 
-    if client_ip not in FILE_EXPLORER_ALLOWED_IPS:
+    if client_ip not in ALLOWED_IPS:
         logger.warning(f'IP {client_ip} 对新闻播放页的访问被禁止：不在白名单')
         return "禁止访问：IP不在白名单", 403
 

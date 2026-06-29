@@ -434,31 +434,31 @@ class ServerManager:
         """运行网页服务器 (文件浏览器+网页控制台+LocalProxy服务器)"""
         try:
             self.flask_app = Flask(__name__)
+            max_upload_size = self.flask_app.config['MAX_CONTENT_LENGTH'] = config_manager.cfgs.get(
+                'max_upload_size', 10 * 1024 * 1024 * 1024
+            )
 
-            # 初始化基本配置和日志输出
-            self.flask_app.config['BASE_DIRECTORY'] = config_manager.cfgs.get(
-                'file_explorer_base_dir', '/')
-            MAX_UPLOAD_SIZE = 1.8 * 1024 * 1024 * 1024  # 1.8GB
-            self.flask_app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
-
+            # 文件浏览器
             file_explorer.logger = LoggerManager(
                 logger_name='file_explorer', file_name='file_explorer',
                 web_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[文件浏览器] %(message)s'
             )
-            file_explorer.FILE_EXPLORER_NEWS_DIR_BASENAME = config_manager.cfgs.get(
-                'file_explorer_news_dir_basename', '新闻'
+            file_explorer.NEWS_DIR_BASENAME = config_manager.cfgs.get(
+                'news_dir_basename', '新闻'
             )
-            file_explorer.FILE_EXPLORER_ALLOWED_IPS = config_manager.cfgs.get(
+            file_explorer.ALLOWED_IPS = config_manager.cfgs.get(
                 'file_explorer_allowed_ips', []
             )
-            file_explorer.FILE_EXPLORER_ALLOWED_WEEKDAYS = config_manager.cfgs.get(
+            file_explorer.ALLOWED_WEEKDAYS = config_manager.cfgs.get(
                 'file_explorer_allowed_weekdays', []
             )
             file_explorer.UPLOAD_FILE_MIN_FREE_SPACE = config_manager.cfgs.get(
                 'upload_file_min_free_space', 0
             )
+            file_explorer.MAX_UPLOAD_SIZE = max_upload_size
 
+            # 网页控制台
             web_console.logger = LoggerManager(
                 logger_name='web_console', file_name='web_console',
                 web_callback=self.add_output_to_web_console,
@@ -471,6 +471,7 @@ class ServerManager:
             web_console.WEBSOCKET_PORT = config_manager.cfgs.get(
                 'websocket_port', 8889)
 
+            # LocalProxy服务器
             localproxy_server.logger = LoggerManager(
                 logger_name='localproxy_server', file_name='localproxy_server',
                 web_callback=self.add_output_to_web_console,
@@ -486,12 +487,17 @@ class ServerManager:
             self.flask_app.register_blueprint(web_console.web_console)
             self.flask_app.register_blueprint(
                 localproxy_server.localproxy_server)
-
+            
+            # 初始化配置并启动
+            self.flask_app.config['BASE_DIRECTORY'] = config_manager.cfgs.get(
+                'file_explorer_base_dir', '/'
+            )
+            self.flask_app.config['MAX_CONTENT_LENGTH'] = max_upload_size
             waitress.serve(
                 self.flask_app, host='0.0.0.0',
                 port=config_manager.cfgs.get('web_server_port', 8888),
                 threads=config_manager.cfgs.get('web_server_threads', 5),
-                max_request_body_size=MAX_UPLOAD_SIZE,
+                max_request_body_size=max_upload_size,
                 connection_limit=500,  # 连接限制
             )
 
