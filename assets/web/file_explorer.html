@@ -130,11 +130,14 @@
             border-radius: 20px;
         }
 
-        /* 列表区域样式 (类似现代文件管理器) */
+        /* 列表区域样式，列表外层开启内部滚动 */
         .file-list-wrapper {
             padding: 12px 20px 20px 20px;
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
+        /* 粘性表头 */
         .list-header {
             display: grid;
             grid-template-columns: 48px 1fr 160px 120px;
@@ -146,6 +149,25 @@
             color: #475569;
             border: 1px solid #eef2f6;
             margin-bottom: 6px;
+            /* 粘性核心 */
+            position: sticky;
+            top: 0;
+            z-index: 99;
+            backdrop-filter: blur(4px);
+            background: rgba(248, 250, 252, 0.92);
+            /* 阴影大幅减轻，浅淡柔和 */
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+        }
+
+        /* 粘性返回上级行 */
+        .parent-row-sticky {
+            position: sticky;
+            top: 56px;
+            /* 表头高度+间距，避免被表头遮挡 */
+            z-index: 98;
+            backdrop-filter: blur(4px);
+            background: rgba(254, 252, 232, 0.94);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
         }
 
         .list-row {
@@ -292,8 +314,13 @@
                 padding: 12px;
             }
 
+            .file-list-wrapper {
+                max-height: 50vh;
+            }
+
             .list-header {
-                display: none;
+                grid-template-columns: 40px 1fr 100px 70px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
             }
 
             .list-row {
@@ -790,6 +817,7 @@
             // 返回上级
             if (parentPath !== null) {
                 const parentRow = createRow({ name: '..', type: 'parent' });
+                parentRow.classList.add('parent-row-sticky');
                 parentRow.onclick = () => {
                     if (window.location.pathname === news_page_pathname) {
                         showToast(news_page_msg);
@@ -979,14 +1007,17 @@
             progressWrap.id = 'all-progress-wrapper';
             progressWrap.style.margin = '0 20px';
             uploadZone.parentNode.insertBefore(progressWrap, uploadZone);
-
+            // 初始化上传功能
             setupUpload();
             // 新闻页面，设置初始目录
             if (window.location.pathname === news_page_pathname) {
                 currentPath = '新闻';
             }
+            // 显示高考倒计时提示
             showGaokaoCountdownToast();
+            // 刷新目录内容
             await fetchDirectory();
+            // 初始化新建文件夹按钮
             newFolderBtn.addEventListener('click', createNewFolder);
         }
 
