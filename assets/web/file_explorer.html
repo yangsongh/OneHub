@@ -347,7 +347,7 @@
         <div class="upload-zone" id="uploadZone">
             <div class="upload-text">点击或拖拽文件到这里上传</div>
             <div class="upload-hint">支持任意格式，上传至当前文件夹</div>
-            <input type="file" id="fileInput" style="display: none;" multiple />
+            <input type="file" id="fileInput" style="display: none;" multiple webkitdirectory directory />
         </div>
     </div>
 
@@ -767,10 +767,10 @@
                 if (!data.success) throw new Error(data.message || '加载失败');
 
                 let items = data.items || [];
-                // items.sort((a, b) => {
-                //     if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-                //     return a.name.localeCompare(b.name);
-                // });\
+                items.sort((a, b) => {
+                    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                });
                 renderFileList(items);
                 renderBreadcrumb();
             } catch (err) {
@@ -931,130 +931,18 @@
             }
         }
 
-        // // 多文件上传核心
-        // function addFilesToQueue(files) {
-        //     if (!files.length) return;
-        //     for (let f of files) pendingFiles.push(f);
-        //     processQueue();
-        // }
-
-        // async function processQueue() {
-        //     // 清空上一批次的 Promise 记录
-        //     currentUploadPromises = [];
-
-        //     // 启动所有上传任务（受并发控制）
-        //     while (pendingFiles.length > 0) {
-        //         const file = pendingFiles.shift();
-        //         const uploadPromise = uploadFile(file);
-        //         currentUploadPromises.push(uploadPromise);
-        //     }
-
-        //     // 等待所有上传任务完成
-        //     if (currentUploadPromises.length > 0) {
-        //         await Promise.allSettled(currentUploadPromises);
-        //         // 所有文件上传完成后，统一刷新一次文件列表
-        //         fetchDirectory();
-        //         showToast(`批量上传完成，共 ${currentUploadPromises.length} 个文件`, false);
-        //     }
-        // }
-
-        // async function uploadFile(file) {
-        //     // 创建唯一 ID
-        //     const progressId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-
-        //     // 创建进度条 DOM 元素
-        //     const wrapperDiv = document.createElement('div');
-        //     wrapperDiv.id = progressId;
-        //     wrapperDiv.style.cssText = 'margin: 8px 20px 0 20px;';
-
-        //     const infoDiv = document.createElement('div');
-        //     infoDiv.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f8fafc; border-radius: 12px; font-size: 0.85rem;';
-        //     infoDiv.innerHTML = `
-        //         <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📄 ${escapeHtml(file.name)}</span>
-        //         <span class="progress-percent" style="width:50px; text-align:right; font-weight:600; color:#3b82f6;">0%</span>
-        //     `;
-
-        //     const barWrapper = document.createElement('div');
-        //     barWrapper.style.cssText = 'margin-top: 4px; background: #e2e8f0; border-radius: 10px; overflow: hidden;';
-        //     const barDiv = document.createElement('div');
-        //     barDiv.className = 'progress-bar-inner';
-        //     barDiv.style.cssText = 'width:0%; height:4px; background:#3b82f6; transition:width 0.2s;';
-        //     barWrapper.appendChild(barDiv);
-
-        //     wrapperDiv.appendChild(infoDiv);
-        //     wrapperDiv.appendChild(barWrapper);
-
-        //     const uploadZoneEl = document.getElementById('uploadZone');
-        //     uploadZoneEl.parentNode.insertBefore(wrapperDiv, uploadZoneEl);
-
-        //     const percentSpan = infoDiv.querySelector('.progress-percent');
-
-        //     const formData = new FormData();
-        //     formData.append('file', file);
-
-        //     return new Promise((resolve) => {
-        //         const xhr = new XMLHttpRequest();
-
-        //         let isCompleted = false; // 防止重复 resolve
-
-        //         const cleanup = () => {
-        //             setTimeout(() => {
-        //                 if (wrapperDiv && wrapperDiv.parentNode) {
-        //                     wrapperDiv.remove();
-        //                 }
-        //             }, 2500);
-        //         };
-
-        //         xhr.upload.onprogress = (e) => {
-        //             if (e.lengthComputable && !isCompleted) {
-        //                 const percent = Math.round((e.loaded / e.total) * 100);
-        //                 if (percentSpan) percentSpan.textContent = `${percent}%`;
-        //                 barDiv.style.width = `${percent}%`;
-        //             }
-        //         };
-
-        //         xhr.onload = () => {
-        //             if (isCompleted) return;
-        //             isCompleted = true;
-
-        //             if (xhr.status >= 200 && xhr.status < 300) {
-        //                 try {
-        //                     const res = JSON.parse(xhr.responseText);
-        //                     if (res.success) {
-        //                         percentSpan.style.color = '#10b981';
-        //                         percentSpan.textContent = '✓ 完成';
-        //                     } else {
-        //                         throw new Error(res.error);
-        //                     }
-        //                 } catch (e) {
-        //                     percentSpan.style.color = '#ef4444';
-        //                     percentSpan.textContent = '失败';
-        //                     showToast(`${file.name} 失败: ${e.message}`, true);
-        //                 }
-        //             } else {
-        //                 const res = JSON.parse(xhr.responseText);
-        //                 percentSpan.style.color = '#ef4444';
-        //                 percentSpan.textContent = '失败';
-        //                 showToast(`${file.name} 上传失败: ${res.error}`, true);
-        //             }
-        //             cleanup();
-        //             resolve();
-        //         };
-
-        //         xhr.onerror = () => {
-        //             if (isCompleted) return;
-        //             isCompleted = true;
-        //             percentSpan.style.color = '#ef4444';
-        //             percentSpan.textContent = '网络错误';
-        //             showToast(`${file.name} 网络错误`, true);
-        //             cleanup();
-        //             resolve();
-        //         };
-
-        //         xhr.open('POST', buildUploadUrl());
-        //         xhr.send(formData);
-        //     });
-        // }
+        // 显示高考倒计时弹窗
+        function showGaokaoCountdownToast() {
+            const target = new Date(2027, 5, 7, 9, 0, 0);
+            const now = new Date();
+            const diff = target - now;
+            if (diff <= 0) return;
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            showToast(`距离高考仅剩${d}天${h}小时${m}分钟${s}秒`);
+        }
 
         // 拖拽 / 点击上传
         function setupUpload() {

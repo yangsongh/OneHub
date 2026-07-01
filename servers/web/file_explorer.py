@@ -104,7 +104,7 @@ def get_directory_items(full_path: str) -> List[Dict[str, Any]]:
             items.append(item_info)
 
         # 排序：文件夹在前, 文件在后, 按名称小写排序
-        items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
+        # items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
         return items
     except PermissionError:
         logger.error(f'无权限访问目录：{full_path}')
@@ -231,7 +231,8 @@ def list_directory(dirpath=''):
         if permission_err:
             return jsonify(permission_err[0]), permission_err[1]
 
-        logger.info(f'IP {client_ip} 尝试获取 {"根" if not dirpath else dirpath} 目录内容')
+        logger.info(
+            f'IP {client_ip} 尝试获取 {"根" if not dirpath else dirpath} 目录内容')
 
         # 获取完整路径并校验
         # dirpath = sanitize_filename(dirpath)
@@ -249,9 +250,10 @@ def list_directory(dirpath=''):
             return jsonify({'success': True, 'items': items})
         except PermissionError:
             return jsonify({'success': False, 'message': '无权限访问该目录'}), 403
-        
+
     except Exception as e:
-        logger.warning(f'IP {client_ip} 获取 {"根" if not dirpath else dirpath} 目录内容失败：{e}')
+        logger.warning(
+            f'IP {client_ip} 获取 {"根" if not dirpath else dirpath} 目录内容失败：{e}')
         return jsonify({'success': False, 'message': f'获取目录内容失败: {e}'}), 500
 
 
@@ -290,9 +292,10 @@ def mkdir(dirpath=''):
         except PermissionError:
             logger.warning(f'IP {client_ip} 新建文件夹 {full_path} 失败：权限不足')
             return jsonify({'success': False, 'message': '权限不足, 无法创建文件夹'}), 403
-        
+
     except Exception as e:
-        logger.warning(f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下新建文件夹失败：{e}')
+        logger.warning(
+            f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下新建文件夹失败：{e}')
         return jsonify({'success': False, 'message': f'创建文件夹失败: {e}'}), 500
 
 
@@ -349,7 +352,7 @@ def serve_file(filepath=''):
                 "Content-Disposition": f'attachment; filename="{encoded_filename}"; filename*=UTF-8\'\'{encoded_filename}'
             }
             return Response(stream_large_file(), headers=headers)
-        
+
     except Exception as e:
         logger.error(f'IP 提供文件 {filepath} 失败：{e}')
         return jsonify({'success': False, 'message': f'提供文件失败: {e}'}), 500
@@ -369,7 +372,7 @@ def upload(dirpath=''):
         file = request.files.get('file')
         if not file or not file.filename:
             return jsonify({'success': False, 'message': '未上传文件'}), 400
-        
+
         # 获取文件名称
         filename = sanitize_filename(file.filename)
 
@@ -397,7 +400,8 @@ def upload(dirpath=''):
 
             # 剩余空间不足阈值
             if free_bytes < UPLOAD_FILE_MIN_FREE_SPACE:
-                logger.warning(f"IP {client_ip} 上传文件失败：服务器存储空间不足, 剩余 {free_mb}MB")
+                logger.warning(
+                    f"IP {client_ip} 上传文件失败：服务器存储空间不足, 剩余 {free_mb}MB")
                 return jsonify({
                     'success': False,
                     'message': f'服务器存储空间不足（剩余{free_mb}MB）, 请联系管理员'
@@ -413,7 +417,7 @@ def upload(dirpath=''):
                     'success': False,
                     'error': f'拒绝上传：上传后服务器剩余空间仅 {after_mb}MB, 低于安全阈值'
                 }), 500
-            
+
         except Exception as e:
             logger.error(f'检测磁盘剩余空间失败：{e}')
             return jsonify({'success': False, 'message': '无法检测服务器剩余存储空间'}), 500
@@ -423,11 +427,12 @@ def upload(dirpath=''):
             file.save(full_path)
             logger.info(f'IP {client_ip} 成功上传文件：{full_path}, 大小：{file_size}字节')
             return jsonify({'success': True, 'message': '上传成功'}), 200
-        
+
         except PermissionError:
-            logger.warning(f'IP {client_ip} 上传文件 {full_path} 失败：服务器错误, 权限不足, 无法保存文件')
+            logger.warning(
+                f'IP {client_ip} 上传文件 {full_path} 失败：服务器错误, 权限不足, 无法保存文件')
             return jsonify({'success': False, 'message': '服务器错误：权限不足, 无法保存文件'}), 500
-        
+
         except OSError as e:
             # 清理文件
             if os.path.exists(full_path):
@@ -440,9 +445,10 @@ def upload(dirpath=''):
             else:
                 logger.error(f'IP {client_ip} 上传文件 {full_path} 失败：系统错误 {e}')
                 return jsonify({'success': False, 'message': f'系统错误: {e}'}), 500
-    
+
     except Exception as e:
-        logger.warning(f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下上传文件失败：{e}')
+        logger.warning(
+            f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下上传文件失败：{e}')
         return jsonify({'success': False, 'message': f'上传失败: {e}'}), 500
 
 
@@ -485,16 +491,18 @@ def upload_chunk(dirpath=''):
         if not chunk_save_path:
             clean_chunk_folder(chunk_dir)
             return jsonify({'success': False, 'message': '非法路径, 请检查文件名中是否有特殊字符'}), 400
-        
+
         # 保存分片
         chunk_file.save(chunk_save_path)
-        logger.info(f'IP {client_ip} 成功上传 {filename} 的第 {chunk_idx} 段分片文件, 大小：{file_size}字节')
+        logger.info(
+            f'IP {client_ip} 成功上传 {filename} 的第 {chunk_idx} 段分片文件, 大小：{file_size}字节')
         return jsonify({"success": True, "message": f"分片{chunk_idx}上传完成"}), 200
-    
+
     except Exception as e:
         # 清理分片临时文件
         clean_chunk_folder(chunk_dir)
-        logger.warning(f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下上传分片文件失败：{e}')
+        logger.warning(
+            f'IP {client_ip} 在 {"根" if not dirpath else dirpath} 下上传分片文件失败：{e}')
         return jsonify({'success': False, 'message': f'上传失败: {e}'}), 500
 
 
@@ -523,7 +531,7 @@ def merge_chunk(dirpath=''):
         # 校验分片完整性
         chunk_dir = get_chunk_dir(file_id, dirpath, filename)
         chunk_files = [safe_join(chunk_dir, f"{i}.part")
-                    for i in range(total_chunks)]
+                       for i in range(total_chunks)]
         for cf in chunk_files:
             if not cf:
                 clean_chunk_folder(chunk_dir)
@@ -554,9 +562,10 @@ def merge_chunk(dirpath=''):
         clean_chunk_folder(chunk_dir)
         logger.info(f"IP {client_ip} 分片合并完成, 生成文件：{full_path}")
         return jsonify({"success": True, "message": "分片合并完成"}), 200
-    
+
     except Exception as e:
         # 清理分片临时文件
         clean_chunk_folder(chunk_dir)
-        logger.error(f"IP {client_ip} {"根" if not dirpath else dirpath} 下的分片合并失败：{e}")
+        logger.error(
+            f'IP {client_ip} {"根" if not dirpath else dirpath} 下的分片合并失败：{e}')
         return jsonify({"success": False, "message": f"分片合并失败: {e}"}), 500
