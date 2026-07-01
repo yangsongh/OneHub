@@ -246,6 +246,8 @@
         let ws = null;
         let currentLineCount = 0;
         let autoScroll = true;  // 是否自动滚动到底部
+        let autoScrollLockCount = 0; // 滚动锁计数器，批量输出叠加
+        let scrollTaskId = null; // 滚动防抖任务ID
 
         // 命令历史记录
         let commandHistory = [];
@@ -374,10 +376,9 @@
             outputDiv.appendChild(line);
             currentLineCount++;
             lineCountSpan.textContent = currentLineCount + ' 行';
-
-            // 自动滚动到底部
+            // 自动滚动开启时，延迟一帧等待DOM渲染完成
             if (autoScroll) {
-                line.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                requestAnimationFrame(autoScrollToBottom);
             }
         }
 
@@ -399,10 +400,30 @@
 
         // 滚动到底部
         function scrollToBottom() {
-            outputDiv.scrollTop = outputDiv.scrollHeight;
-            // 手动点击滚到底部，同步开启自动滚动
             autoScroll = true;
             toggleAutoScrollBtn.textContent = '自动滚动: 开启';
+            autoScrollToBottom(); // 复用带锁滚动方法
+        }
+
+        // 程序自动滚动到底部，带平滑动画+防重复绑定
+        function autoScrollToBottom() {
+            // 防抖：合并短时间内多次滚动请求，只执行一次
+            if (scrollTaskId) cancelAnimationFrame(scrollTaskId);
+            scrollTaskId = requestAnimationFrame(() => {
+                autoScrollLockCount++;
+                // 平滑滚动动画
+                outputDiv.scrollTo({
+                    top: outputDiv.scrollHeight,
+                    behavior: 'smooth'
+                });
+                // 单次滚动结束回调，避免重复绑定scrollend
+                const handler = () => {
+                    autoScrollLockCount--;
+                    outputDiv.removeEventListener('scrollend', handler);
+                };
+                outputDiv.addEventListener('scrollend', handler);
+                scrollTaskId = null;
+            });
         }
 
         // 切换自动滚动
@@ -496,19 +517,30 @@
                     try {
                         const message = JSON.parse(event.data);
 
+                        // 加载历史记录
                         if (message.type === 'history') {
-                            // 加载历史记录
                             clearOutput();
                             const historyData = message.data;
+                            // 一次性批量插入DOM，减少回流
+                            const fragment = document.createDocumentFragment();
                             for (const entry of historyData) {
-                                addOutputLine(entry.content);
+                                const line = document.createElement('div');
+                                line.className = 'output-line';
+                                line.innerHTML = ansiToHtml(entry.content);
+                                fragment.appendChild(line);
                             }
+                            outputDiv.appendChild(fragment);
+                            currentLineCount = historyData.length;
+                            lineCountSpan.textContent = currentLineCount + ' 行';
                             console.log(`已加载 ${historyData.length} 条历史记录`);
-                            scrollToBottom();
-                        } else if (message.type === 'output') {
-                            // 实时输出
+                            autoScrollToBottom();
+                        }
+                        // 实时输出
+                        else if (message.type === 'output') {
                             addOutputLine(message.data.content);
-                        } else if (message.type === 'command_ack') {
+                        }
+                        // 命令发送成功
+                        else if (message.type === 'command_ack') {
                             console.log(`命令已发送: ${message.command}`);
                         }
                     } catch (e) {
@@ -553,6 +585,9 @@
 
         // 监听输出框手动滚动行为
         outputDiv.addEventListener('scroll', function () {
+            // 存在自动滚动锁，直接跳过，不修改开关状态
+            if (autoScrollLockCount > 0) return;
+
             const el = outputDiv;
             // 判断是否已经滚动到底部（容错阈值5px）
             const isBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 5;
