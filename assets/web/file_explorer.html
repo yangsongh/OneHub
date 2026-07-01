@@ -426,7 +426,9 @@
                 globalPanel = document.createElement("div");
                 globalPanel.id = globalPanelId;
                 globalPanel.style.cssText = "margin:12px 20px; padding:14px 18px; background:#eff6ff; border-radius:16px; border:1px solid #bfdbfe;";
-                uploadZone.parentNode.insertBefore(globalPanel, uploadZone);
+                const progressWrap = document.getElementById('all-progress-wrapper');
+                // 全局面板永远放在容器最顶部
+                progressWrap.prepend(globalPanel);
             }
 
             const filePercent = calcPercent(stat.finishedFileCount + stat.failedFileCount, stat.totalFileCount);
@@ -504,7 +506,8 @@
                 barDiv,
                 retryBtn
             };
-            uploadZone.parentNode.insertBefore(wrapperDiv, uploadZone);
+            const progressWrap = document.getElementById('all-progress-wrapper');
+            progressWrap.appendChild(wrapperDiv);
         }
 
         // 更新单文件进度UI
@@ -971,6 +974,12 @@
 
         // 初始化
         async function init() {
+            // 统一进度容器，固定层级
+            const progressWrap = document.createElement('div');
+            progressWrap.id = 'all-progress-wrapper';
+            progressWrap.style.margin = '0 20px';
+            uploadZone.parentNode.insertBefore(progressWrap, uploadZone);
+
             setupUpload();
             // 新闻页面，设置初始目录
             if (window.location.pathname === news_page_pathname) {
