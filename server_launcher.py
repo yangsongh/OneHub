@@ -18,8 +18,8 @@ from pyftpdlib.authorizers import DummyAuthorizer
 from typing import Set
 from flask import Flask
 
-from servers.proxy.http_server import HTTPProxyServer
-from servers.proxy.socks_server import SocksProxyServer
+from servers.proxy.http_proxy_server import HTTPProxyServer
+from servers.proxy.socks_proxy_server import SocksProxyServer
 
 import servers.web.file_explorer as file_explorer
 import servers.web.web_console as web_console

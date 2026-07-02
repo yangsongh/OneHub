@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author : yangsongh
-# @File : UtilsLibs.py
-# @Version : 1.0.5
+# @File : utils_lib.py
+# @Version : 1.0.6
 
 import os
 import re
@@ -254,7 +254,11 @@ class Utils:
     @staticmethod
     def debug_memory_usage(logger: LoggerManager) -> None:
         """日志记录内存占用"""
-        import psutil  # type: ignore
+        try:
+            import psutil  # type: ignore
+        except ImportError:
+            logger.error('未安装psutil库, 无法记录内存占用')
+            return
         mem = psutil.virtual_memory()
         process = psutil.Process()
         logger.debug(
@@ -301,7 +305,7 @@ class Utils:
     def qt_setup_high_dpi(logger: LoggerManager) -> bool:
         """Qt适配高DPI (必须在QApplication注册前执行)"""
         try:
-            from PyQt5.QtWidgets import QApplication  # type: ignore
+            from PyQt5.QtWidgets import QApplication # type: ignore
             from PyQt5.QtCore import Qt, QCoreApplication  # type: ignore
 
             os.putenv('QT_ENABLE_HIGHDPI_SCALING', '1')
@@ -312,6 +316,10 @@ class Utils:
             QCoreApplication.setAttribute(
                 Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
             logger.debug('已启用自动DPI模式')
+            
+        except ImportError:
+            logger.error(f'未安装PyQt5')
+            return False
         except Exception as e:
             logger.error(f'启动自动DPI失败: {repr(e)}')
             return False
