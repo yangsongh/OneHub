@@ -18,8 +18,8 @@ from pyftpdlib.authorizers import DummyAuthorizer
 from typing import Set
 from flask import Flask
 
-from servers.http_server import HTTPProxyServer
-from servers.socks_server import SocksProxyServer
+from servers.proxy.http_server import HTTPProxyServer
+from servers.proxy.socks_server import SocksProxyServer
 
 import servers.web.file_explorer as file_explorer
 import servers.web.web_console as web_console
@@ -452,7 +452,7 @@ class ServerManager:
             # 文件浏览器
             file_explorer.logger = LoggerManager(
                 logger_name='file_explorer', file_name='file_explorer',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[文件浏览器] %(message)s'
             )
             file_explorer.NEWS_DIR_BASENAME = config_manager.cfgs.get(
@@ -468,7 +468,7 @@ class ServerManager:
             # 网页控制台
             web_console.logger = LoggerManager(
                 logger_name='web_console', file_name='web_console',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[网页控制台] %(message)s'
             )
             web_console.WEB_CONSOLE_USERNAME = config_manager.cfgs.get(
@@ -481,7 +481,7 @@ class ServerManager:
             # LocalProxy服务器
             localproxy_server.logger = LoggerManager(
                 logger_name='localproxy_server', file_name='localproxy_server',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[LocalProxy] %(message)s'
             )
             localproxy_server.VERSION_CODE = config_manager.cfgs.get(
@@ -518,7 +518,7 @@ class ServerManager:
         try:
             http_logger = LoggerManager(
                 logger_name='http_server', file_name='http_server',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[HTTP] %(message)s'
             )
             deft_cfgs = {
@@ -546,7 +546,7 @@ class ServerManager:
         try:
             socks_logger = LoggerManager(
                 logger_name='socks_server', file_name='socks_server',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[SOCKS] %(message)s'
             )
             deft_cfgs = {
@@ -574,7 +574,7 @@ class ServerManager:
         try:
             news_downloader.logger = LoggerManager(
                 logger_name='news_downloader', file_name='news_downloader',
-                web_callback=self.add_output_to_web_console,
+                custom_callback=self.add_output_to_web_console,
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[新闻下载器] %(message)s'
             )
             news_downloader.run_downloader(
@@ -791,7 +791,7 @@ def main():
     # 创建服务器管理器
     manager = ServerManager()
     # 添加网页控制台输出回调
-    logger.add_web_callback(manager.add_output_to_web_console)
+    logger.add_custom_callback(manager.add_output_to_web_console)
 
     # 启动所有服务器
     if not manager.start_all_servers():

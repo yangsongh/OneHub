@@ -13,21 +13,21 @@ import traceback
 import threading
 
 from datetime import datetime
-from typing import Callable, Optional, Type, Union
 from types import TracebackType
 from colorlog import ColoredFormatter
+from typing import Callable, Optional, Type, Union
 from logging import DEBUG, INFO, WARNING, ERROR, Handler, LogRecord
 
 
-class WebConsoleHandler(Handler):
-    """自定义日志处理器，将日志发送到网页控制台"""
+class CustomHandler(Handler):
+    """自定义日志处理器"""
 
     def __init__(self, callback: Callable[[str], None]):
         super().__init__()
         self.callback = callback
 
     def emit(self, record: LogRecord):
-        """发送日志记录到网页控制台"""
+        """发送日志"""
         try:
             if self.callback:
                 # 使用格式化器格式化消息（保留颜色代码）
@@ -44,8 +44,8 @@ class LoggerManager:
     def __init__(self, logger_name: Union[str, None] = 'default', file_name: Union[str, None] = None,
                  file_format_str: str = '%(asctime)s %(levelname)1.1s %(filename)s:%(lineno)d %(message)s',
                  console_format_str: str = '%(asctime)s %(filename)s:%(lineno)d-%(funcName)s %(log_color)s%(message)s',
-                 console_handler_level=INFO, file_handler_level=INFO, no_file_handler=False,
-                 web_callback: Optional[Callable[[str], None]] = None):
+                 console_handler_level=DEBUG, file_handler_level=INFO, no_file_handler=False,
+                 custom_callback: Optional[Callable[[str], None]] = None):
         self.logger = logging.getLogger(logger_name)
         self.logger.propagate = False  # 阻止传播到 root
         self.logger.setLevel(DEBUG)  # 控制日志最低输出等级
@@ -75,29 +75,29 @@ class LoggerManager:
         console_handler.setLevel(console_handler_level)  # 控制台日志输出等级
         self.logger.addHandler(console_handler)
 
-        # 网页控制台处理器
-        if web_callback:
-            self.add_web_callback(web_callback)
+        # 自定义处理器
+        if custom_callback:
+            self.add_custom_callback(custom_callback)
 
-    def add_web_callback(self, callback: Callable[[str], None]):
-        """动态添加网页控制台回调"""
-        # 检查是否已存在 WebConsoleHandler
+    def add_custom_callback(self, callback: Callable[[str], None]):
+        """动态添加自定义回调"""
+        # 检查是否已存在 CustomHandler
         for handler in self.logger.handlers:
-            if isinstance(handler, WebConsoleHandler):
+            if isinstance(handler, CustomHandler):
                 # 已存在，更新回调
                 handler.callback = callback
                 return
 
         # 添加新的处理器
-        web_handler = WebConsoleHandler(callback)
+        custom_handler = CustomHandler(callback)
         # 使用现有的控制台格式化器
         for handler in self.logger.handlers:
-            if not isinstance(handler, logging.FileHandler) and not isinstance(handler, WebConsoleHandler):
-                web_handler.setFormatter(handler.formatter)
-                web_handler.setLevel(handler.level)
+            if not isinstance(handler, logging.FileHandler) and not isinstance(handler, CustomHandler):
+                custom_handler.setFormatter(handler.formatter)
+                custom_handler.setLevel(handler.level)
                 break
 
-        self.logger.addHandler(web_handler)
+        self.logger.addHandler(custom_handler)
 
     @staticmethod
     def get_log_file_path(file_name: Union[str, None] = None) -> str:
