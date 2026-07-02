@@ -351,9 +351,9 @@ class ServerManager:
         try:
             # 确保FTP目录存在
             ftp_directory = config_manager.cfgs.get('ftp_directory', '/')
-            if not os.path.exists(ftp_directory):
-                os.makedirs(ftp_directory)
-                logger.info(f"创建FTP目录: {ftp_directory}")
+            # if not os.path.exists(ftp_directory):
+            #     os.makedirs(ftp_directory, exist_ok=False)
+            #     logger.info(f"创建FTP目录: {ftp_directory}")
 
             # 创建授权器
             authorizer = DummyAuthorizer()

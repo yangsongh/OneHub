@@ -84,9 +84,9 @@ def get_config():
             config_file = CONFIG_OLD_FILE
 
         if not os.path.exists(config_file):
-            error_msg = f"错误：配置文件 '{config_file}' 不存在。"
-            logger.error(error_msg)
-            return jsonify({"error": error_msg}), 500
+            err = f"配置文件 '{config_file}' 不存在"
+            logger.warning(err)
+            return jsonify({"error": err}), 500
 
         with open(config_file, 'r', encoding='utf-8') as f:
             config_data = json5.load(f)
@@ -95,9 +95,9 @@ def get_config():
         return jsonify(config_data), 200
 
     except Exception as e:
-        error_msg = f"错误：解析配置文件时发生错误：{e}"
-        logger.error(error_msg, exc_info=True)
-        return jsonify({"error": error_msg}), 500
+        err = f"解析或发送配置文件时发生错误：{e}"
+        logger.error(err, exc_info=True)
+        return jsonify({"error": err}), 500
 
 
 @localproxy_server.route('/post_activate', methods=['POST'])
@@ -107,16 +107,18 @@ def post_activate():
         data = request.get_json()
         device_id = data.get('device_id')
         if not device_id:
-            logger.warning("无效的设备激活请求（缺少设备ID）")
-            return jsonify({"error": "invalid_request"}), 400
+            warn = "无效的设备激活请求（缺少设备ID）"
+            logger.warning(warn)
+            return jsonify({"error": warn}), 400
 
         logger.warning(
             f"收到来自 {request.remote_addr} 的设备激活请求 - 设备ID: {device_id}")
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
-        logger.error(f"处理激活请求时发生错误: {str(e)}", exc_info=True)
-        return jsonify({"error": "server_error"}), 500
+        err = f"处理激活请求时发生错误: {str(e)}"
+        logger.error(err, exc_info=True)
+        return jsonify({"error": err}), 500
 
 
 @localproxy_server.route('/downloads/<path:filename>')
@@ -136,9 +138,9 @@ def download_file(filename):
         logger.info(f"成功为 {client_ip} 提供下载文件：{target_file}")
         return send_from_directory(downloads_folder, filename, as_attachment=True)
     else:
-        error_msg = f"文件未找到：{target_file}"
-        logger.warning(error_msg)
-        return error_msg, 404
+        err = f"文件未找到：{target_file}"
+        logger.warning(err)
+        return err, 404
 
 
 @localproxy_server.route('/icons/<path:filename>')
@@ -157,9 +159,9 @@ def serve_icon(filename):
         logger.info(f"成功为 {client_ip} 返回图标资源：{target_file}")
         return send_from_directory(ICONS_FOLDER, filename, as_attachment=False)
     else:
-        error_msg = f"图标资源未找到：{target_file}"
-        logger.warning(error_msg)
-        return error_msg, 404
+        err = f"图标资源未找到：{target_file}"
+        logger.warning(err)
+        return err, 404
 
 
 @localproxy_server.route('/noticeboard/<path:filename>')
@@ -177,6 +179,6 @@ def serve_notice_file(filename):
         logger.info(f"成功为 {client_ip} 返回公告板文件: {target_file}")
         return send_from_directory(NOTICE_BOARD_FOLDER, filename, as_attachment=False)
     else:
-        error_msg = f"公告板文件未找到: {target_file}"
-        logger.warning(error_msg)
-        return error_msg, 404
+        err = f"公告板文件未找到: {target_file}"
+        logger.warning(err)
+        return err, 404

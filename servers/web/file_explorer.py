@@ -55,8 +55,7 @@ def sanitize_filename(filename: str) -> str:
         filename = filename.replace(char, '')
     # 移除首尾空白字符
     filename = filename.strip()
-    # 防止空文件名
-    return filename if filename else 'unnamed'
+    return filename
 
 
 def check_access_permission(client_ip: Optional[str], path: str = '') -> Optional[Tuple[Dict[str, Any], int]]:
@@ -112,6 +111,33 @@ def get_directory_items(full_path: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f'读取目录 {full_path} 失败：{str(e)}')
         raise
+
+
+def get_target_full_path(base_dir: str, current_view_dir: str, relative_path: str, filename: str) -> str:
+    """
+    拼接上传目标完整路径，自动递归创建中间层级目录
+    :param base_dir: 程序根目录
+    :param current_view_dir: 当前前端浏览目录（url中的dirpath）
+    :param relative_path: 文件携带的相对层级路径（文件夹上传子目录）
+    :param filename: 文件名
+    :return: 安全拼接后的完整文件路径
+    """
+    # 拼接基础路径：当前浏览目录 + 上传子层级
+    path_segments = []
+    if current_view_dir:
+        path_segments.append(current_view_dir)
+    if relative_path:
+        path_segments.append(relative_path)
+    path_segments.append(filename)
+
+    full_target = safe_join(base_dir, *path_segments)
+    if not full_target:
+        raise ValueError("非法路径，存在危险字符")
+
+    # 自动递归创建所有父级目录
+    parent_folder = os.path.dirname(full_target)
+    os.makedirs(parent_folder, exist_ok=True)
+    return full_target
 
 
 def get_chunk_temp_root() -> str:
@@ -235,7 +261,6 @@ def list_directory(dirpath=''):
             f'IP {client_ip} 尝试获取 {"根" if not dirpath else dirpath} 目录内容')
 
         # 获取完整路径并校验
-        # dirpath = sanitize_filename(dirpath)
         full_path = safe_join(get_base_directory(), dirpath)
         if not full_path:
             return jsonify({'success': False, 'message': '路径为空'}), 400
@@ -249,7 +274,7 @@ def list_directory(dirpath=''):
             items = get_directory_items(full_path)
             return jsonify({'success': True, 'items': items})
         except PermissionError:
-            return jsonify({'success': False, 'message': '无权限访问该目录'}), 403
+            return jsonify({'success': False, 'message': '服务器错误: 无权限访问该目录'}), 500
 
     except Exception as e:
         logger.warning(
@@ -291,7 +316,7 @@ def mkdir(dirpath=''):
             return jsonify({'success': True, 'message': '创建成功'}), 200
         except PermissionError:
             logger.warning(f'IP {client_ip} 新建文件夹 {full_path} 失败：权限不足')
-            return jsonify({'success': False, 'message': '权限不足, 无法创建文件夹'}), 403
+            return jsonify({'success': False, 'message': '服务器错误: 权限不足, 无法创建文件夹'}), 500
 
     except Exception as e:
         logger.warning(
@@ -318,7 +343,7 @@ def serve_file(filepath=''):
         elif os.path.isdir(full_path):
             return jsonify({'success': False, 'message': '不支持文件夹'}), 400
         elif not os.path.exists(full_path):
-            return jsonify({'success': False, 'message': '文件不存在'}), 400
+            return jsonify({'success': False, 'message': '文件不存在'}), 404
 
         # 获取文件名、文件大小
         filename = os.path.basename(full_path)
@@ -467,8 +492,8 @@ def upload_chunk(dirpath=''):
         filename = request.args.get("filename", "")
         filename = sanitize_filename(filename)
         chunk_idx = int(request.args.get("chunk", 0))
-        # total_chunks = int(request.args.get("total", 1))
         file_id = request.args.get("fileId", "")
+        relative_path = request.args.get("relativePath", "")
         if not all([filename, file_id]):
             return jsonify({"success": False, "message": "参数缺失"}), 400
 
@@ -483,7 +508,7 @@ def upload_chunk(dirpath=''):
         chunk_file.seek(0)  # 重置文件指针, 否则后续保存会是空文件
 
         logger.info(
-            f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下上传 {filename} 的第 {chunk_idx} 段分片文件, 大小: {file_size}字节')
+            f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下上传 {filename} 的第 {chunk_idx} 段分片文件, 子层级: {relative_path}, 大小: {file_size}字节')
 
         # 获取分片保存路径并校验
         chunk_dir = get_chunk_dir(file_id, dirpath, filename)
@@ -522,11 +547,12 @@ def merge_chunk(dirpath=''):
         filename = sanitize_filename(filename)
         total_chunks = int(request.args.get("total", 1))
         file_id = request.args.get("fileId", "")
+        relative_path = request.args.get("relativePath", "")
         if not all([filename, file_id]):
             return jsonify({"success": False, "message": "参数缺失"}), 400
 
         logger.info(
-            f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下合并 {filename} 的分片文件, 总分片数: {total_chunks}, 文件ID: {file_id}')
+            f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下合并 {filename} 的分片文件, 子层级: {relative_path}, 总分片数: {total_chunks}, 文件ID: {file_id}')
 
         # 校验分片完整性
         chunk_dir = get_chunk_dir(file_id, dirpath, filename)
@@ -540,12 +566,11 @@ def merge_chunk(dirpath=''):
                 clean_chunk_folder(chunk_dir)
                 return jsonify({"success": False, "message": f"分片缺失：{cf}"}), 400
 
-        # 获取目标文件路径并校验
-        full_path = safe_join(get_base_directory(), dirpath, filename)
-        if not full_path:
-            clean_chunk_folder(chunk_dir)
-            return jsonify({'success': False, 'message': '非法路径, 请检查文件名中是否有特殊字符'}), 400
-        elif os.path.exists(full_path):
+        # 生成带层级的完整路径，自动创建中间目录
+        base_dir = get_base_directory()
+        full_path = get_target_full_path(
+            base_dir, dirpath, relative_path, filename)
+        if os.path.exists(full_path):
             clean_chunk_folder(chunk_dir)
             return jsonify({'success': False, 'message': '文件已存在'}), 400
 

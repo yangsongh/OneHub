@@ -372,8 +372,8 @@
 
         <!-- 上传区域 (支持点击/拖拽) -->
         <div class="upload-zone" id="uploadZone">
-            <div class="upload-text">点击或拖拽文件到这里上传</div>
-            <div class="upload-hint">支持任意格式，上传至当前文件夹</div>
+            <div class="upload-text">点击或拖拽文件/文件夹到这里上传</div>
+            <div class="upload-hint">支持任意格式文件、完整文件夹上传，自动还原目录结构</div>
             <input type="file" id="fileInput" style="display: none;" multiple webkitdirectory directory />
         </div>
     </div>
@@ -411,7 +411,10 @@
             lastTime: Date.now(),
             speed: 0 // MB/s
         };
-
+        // 当前已创建的目录完整路径缓存，避免重复请求mkdir
+        const createdDirCache = new Set();
+        // 上次进度更新时间
+        let lastUpdate = Date.now();
         // 当前文件浏览器所在路径
         let currentPath = '';
         let news_page_pathname = '/news';
@@ -479,17 +482,20 @@
                 progressWrap.prepend(globalPanel);
             }
 
-            const filePercent = calcPercent(stat.finishedFileCount + stat.failedFileCount, stat.totalFileCount);
-            const chunkPercent = calcPercent(stat.finishedChunkCount, stat.totalChunkCount);
+            // const filePercent = calcPercent(stat.finishedFileCount + stat.failedFileCount, stat.totalFileCount);
+            // const chunkPercent = calcPercent(stat.finishedChunkCount, stat.totalChunkCount);
             const bytePercent = calcPercent(stat.finishedBytes, stat.totalBytes);
 
             // 优先渲染面板最新状态
             globalPanel.innerHTML = `
-                <div style="font-weight:600; color:#1d4ed8; margin-bottom:8px;">批量上传总进度</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="font-weight:600; color:#1d4ed8;">批量上传总进度</div>
+                    <div style="font-weight:600; color:#3b82f6;">${bytePercent}%</div>
+                </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; font-size:0.85rem; color:#334155;">
-                    <div>文件：${stat.finishedFileCount + stat.failedFileCount}/${stat.totalFileCount} (${filePercent}%)</div>
-                    <div>分片：${stat.finishedChunkCount}/${stat.totalChunkCount} (${chunkPercent}%)</div>
-                    <div>大小：${formatMB(stat.finishedBytes)}/${formatMB(stat.totalBytes)} (${bytePercent}%)</div>
+                    <div>文件：${stat.finishedFileCount + stat.failedFileCount}/${stat.totalFileCount}</div>
+                    <div>分片：${stat.finishedChunkCount}/${stat.totalChunkCount}</div>
+                    <div>大小：${formatMB(stat.finishedBytes)}/${formatMB(stat.totalBytes)}</div>
                     <div>实时速度：${uploadSpeedCache.speed} MB/s</div>
                 </div>
                 <div style="margin-top:10px; background:#dbeafe; border-radius:8px; height:6px; overflow:hidden;">
@@ -540,6 +546,10 @@
                     <span class="chunk-info">分片：0/${task.totalChunks}</span>
                     <span class="size-info">0.00 MB/${formatMB(file.size)}</span>
                 </div>
+                <div class="task-meta-row" style="margin-top:4px; font-size:0.72rem; color:#94a3b8; word-break:break-all;">
+                    ID: ${task.fileId} | 重试: ${task.retryCount} <br>
+                    路径: ${escapeHtml((task.basePath ? task.basePath + "/" : "") + task.relativePath)}
+                </div>
             `;
             const barWrapper = document.createElement('div');
             barWrapper.style.cssText = 'margin-top: 6px; background: #e2e8f0; border-radius: 10px; overflow: hidden;';
@@ -559,7 +569,8 @@
                 chunkSpan: infoDiv.querySelector('.chunk-info'),
                 sizeSpan: infoDiv.querySelector('.size-info'),
                 barDiv,
-                retryBtn
+                retryBtn,
+                metaRow: infoDiv.querySelector('.task-meta-row') // 缓存元信息行
             };
             const progressWrap = document.getElementById('all-progress-wrapper');
             progressWrap.appendChild(wrapperDiv);
@@ -568,19 +579,31 @@
         // 更新单文件进度UI
         function updateTaskProgressUI(task) {
             const { file, finishedBytes, finishedChunks, totalChunks, _dom, status } = task;
-            if (!_dom) return;
+            // 空判断，DOM已销毁直接退出
+            if (!_dom || !_dom.metaRow) return;
+
             const pct = calcPercent(finishedBytes, file.size);
             _dom.barDiv.style.width = pct + "%";
             _dom.percentSpan.textContent = pct + "%";
             _dom.chunkSpan.textContent = `分片：${finishedChunks}/${totalChunks}`;
             _dom.sizeSpan.textContent = `${formatMB(finishedBytes)}/${formatMB(file.size)}`;
+
+            // 直接使用缓存节点更新，不再查询DOM
+            const fullPath = escapeHtml((task.basePath ? task.basePath + "/" : "") + task.relativePath);
+            _dom.metaRow.innerHTML = `
+                ID: ${task.fileId} | 重试: ${task.retryCount} <br>
+                路径: ${fullPath}
+            `;
+
             // 根据状态切换样式与重试按钮
             switch (status) {
                 case UploadStatus.SUCCESS:
                     _dom.percentSpan.textContent = "100.00%";
                     _dom.percentSpan.style.color = "#10b981";
                     _dom.retryBtn.style.display = "none";
-                    setTimeout(() => task.domWrapper.remove(), UPLOAD_CONFIG.PROGRESS_AUTO_CLOSE_MS);
+                    setTimeout(() => {
+                        if (task.domWrapper) task.domWrapper.remove();
+                    }, UPLOAD_CONFIG.PROGRESS_AUTO_CLOSE_MS);
                     break;
                 case UploadStatus.FAILED:
                     _dom.percentSpan.textContent = "失败";
@@ -609,7 +632,7 @@
                     // 分片重试循环
                     for (let r = 0; r <= UPLOAD_CONFIG.MAX_RETRY; r++) {
                         try {
-                            await uploadSingleChunk(task, chunkIdx, blob, start);
+                            await uploadSingleChunk(task, chunkIdx, blob, start, task.relativePath);
                             chunkSuccess = true;
                             break;
                         } catch (chunkErr) {
@@ -620,7 +643,7 @@
                     if (!chunkSuccess) throw new Error(`${file.name} 分片${chunkIdx}多次重试失败`);
                 }
                 // 合并分片
-                const mergeResp = await fetch(buildChunkMergeUrl(currentPath, file.name, totalChunks, fileId), { method: "POST" });
+                const mergeResp = await fetch(buildChunkMergeUrl(task.basePath, file.name, totalChunks, fileId, task.relativePath), { method: "POST" });
                 const mergeData = await mergeResp.json();
                 if (!mergeData.success) throw new Error(mergeData.message);
                 // 上传成功
@@ -640,14 +663,17 @@
         }
 
         // 上传单个分片
-        function uploadSingleChunk(task, chunkIdx, blob, chunkStartByte) {
+        function uploadSingleChunk(task, chunkIdx, blob, chunkStartByte, relativePath) {
             return new Promise((resolve, reject) => {
                 const { file, fileId } = task;
-                const url = buildChunkUploadUrl(currentPath, file.name, chunkIdx, task.totalChunks, fileId);
+                const url = buildChunkUploadUrl(task.basePath, file.name, chunkIdx, task.totalChunks, fileId, relativePath);
                 const formData = new FormData();
                 formData.append("chunk", blob);
                 const xhr = new XMLHttpRequest();
                 xhr.upload.onprogress = (e) => {
+                    const now = Date.now();
+                    if (now - lastUpdate < 200) return;
+                    lastUpdate = now;
                     if (!e.lengthComputable) return;
                     const loaded = e.loaded;
                     const total = e.total;
@@ -684,14 +710,18 @@
         }
 
         // 将文件加入上传队列（入口）
-        function addFilesToQueue(files) {
+        function addFilesToQueue(files, relativePath = '') {
             if (!files.length) return;
             for (const f of files) {
-                // 同名同大小 且 当前任务未完成（等待/上传中）才判定重复，SUCCESS 允许重复上传
+                // 兼容文件夹上传的webkitRelativePath / _relativePath
+                const fileRelPath = f.webkitRelativePath ? f.webkitRelativePath.replace(`/${f.name}`, '') : (f._relativePath || relativePath);
+                // 同名同大小 且 所在相对目录完全一致 且 当前任务未完成（等待/上传中/失败）才判定重复，SUCCESS 允许重复上传
                 const duplicate = uploadTaskList.some(t => {
                     return t.file.name === f.name
                         && t.file.size === f.size
-                        && (t.status === UploadStatus.PENDING || t.status === UploadStatus.UPLOADING);
+                        && t.relativePath === fileRelPath
+                        && t.basePath === currentPath // 仅当前浏览目录下同层级文件才拦截
+                        && [UploadStatus.PENDING, UploadStatus.UPLOADING, UploadStatus.FAILED].includes(t.status);
                 });
                 if (duplicate) {
                     showToast(`文件「${f.name}」已在队列中，无需重复添加`, false);
@@ -704,6 +734,8 @@
                     id: taskId,
                     file: f,
                     fileId: taskId,
+                    basePath: currentPath, // 上传时的基准目录
+                    relativePath: fileRelPath, // 文件相对上传根目录的层级路径
                     status: UploadStatus.PENDING,
                     finishedBytes: 0,
                     finishedChunks: 0,
@@ -789,13 +821,17 @@
         }
 
         // URL构建工具
-        function buildChunkUploadUrl(dirpath, filename, chunkIndex, totalChunks, fileId) {
+        function buildChunkUploadUrl(dirpath, filename, chunkIndex, totalChunks, fileId, relativePath = '') {
             const base = dirpath ? `/api/chunk/${encodeURIComponent(dirpath)}` : "/api/chunk";
-            return `${base}?filename=${encodeURIComponent(filename)}&chunk=${chunkIndex}&total=${totalChunks}&fileId=${encodeURIComponent(fileId)}`;
+            let url = `${base}?filename=${encodeURIComponent(filename)}&chunk=${chunkIndex}&total=${totalChunks}&fileId=${encodeURIComponent(fileId)}`;
+            if (relativePath) url += `&relativePath=${encodeURIComponent(relativePath)}`;
+            return url;
         }
-        function buildChunkMergeUrl(dirpath, filename, totalChunks, fileId) {
+        function buildChunkMergeUrl(dirpath, filename, totalChunks, fileId, relativePath = '') {
             const base = dirpath ? `/api/chunk_merge/${encodeURIComponent(dirpath)}` : "/api/chunk_merge";
-            return `${base}?filename=${encodeURIComponent(filename)}&total=${totalChunks}&fileId=${encodeURIComponent(fileId)}`;
+            let url = `${base}?filename=${encodeURIComponent(filename)}&total=${totalChunks}&fileId=${encodeURIComponent(fileId)}`;
+            if (relativePath) url += `&relativePath=${encodeURIComponent(relativePath)}`;
+            return url;
         }
         function buildListUrl() {
             return currentPath ? `/api/list/${encodeURIComponent(currentPath)}` : '/api/list';
@@ -814,6 +850,85 @@
             if (!text) return '';
             const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
             return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 递归读取拖拽目录条目，返回 {files: [], emptyDirs: []}
+        async function readDataTransferEntries(entries) {
+            const files = [];
+            const dirSet = new Set();
+            async function traverseEntry(entry, parentRelPath = '') {
+                if (entry.isDirectory) {
+                    const dirName = entry.name;
+                    const relPath = parentRelPath ? `${parentRelPath}/${dirName}` : dirName;
+                    dirSet.add(relPath);
+                    // 读取子条目
+                    const reader = entry.createReader();
+                    const childEntries = await new Promise(resolve => reader.readEntries(resolve));
+                    for (const child of childEntries) {
+                        await traverseEntry(child, relPath);
+                    }
+                } else if (entry.isFile) {
+                    const file = await new Promise((res) => entry.file(res));
+                    // webkitRelativePath兼容拖拽条目
+                    file._relativePath = parentRelPath;
+                    files.push(file);
+                }
+            }
+            for (const entry of entries) {
+                await traverseEntry(entry);
+            }
+            // 提取所有文件所属目录
+            const fileDirs = new Set();
+            for (const f of files) {
+                if (f._relativePath) fileDirs.add(f._relativePath);
+            }
+            // 空文件夹 = 总目录集合 - 文件所属目录
+            const emptyDirs = Array.from(dirSet).filter(d => !fileDirs.has(d));
+            // 按层级由浅到深排序（先浅目录，再深层）
+            emptyDirs.sort((a, b) => a.split('/').length - b.split('/').length);
+            return { files, emptyDirs };
+        }
+
+        // 串行创建空目录，按顺序调用mkdir接口（跳过已创建层级）
+        async function createEmptyDirs(emptyDirList) {
+            for (const relDir of emptyDirList) {
+                const fullTargetPath = currentPath ? `${currentPath}/${relDir}` : relDir;
+                // 整条目录已创建过，直接跳过整条分支
+                if (createdDirCache.has(fullTargetPath)) continue;
+
+                const dirSegments = fullTargetPath.split('/');
+                let tempPath = '';
+                // 逐层创建（复用现有mkdir接口）
+                for (const seg of dirSegments) {
+                    if (!seg.trim()) continue;
+                    const nextPath = tempPath ? `${tempPath}/${seg}` : seg;
+                    // 该层级已创建，跳过请求
+                    if (createdDirCache.has(nextPath)) {
+                        tempPath = nextPath;
+                        continue;
+                    }
+                    try {
+                        const url = tempPath ? `/api/mkdir/${encodeURIComponent(tempPath)}` : '/api/mkdir';
+                        const resp = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ folder_name: seg.trim() })
+                        });
+                        const data = await resp.json();
+                        if (!data.success && !data.message.includes('已存在')) {
+                            showToast(`创建目录 ${nextPath} 失败：${data.message}`, true);
+                        }
+                        // 缓存当前层级，后续不再重复创建
+                        createdDirCache.add(nextPath);
+                        tempPath = nextPath;
+                    } catch (err) {
+                        showToast(`创建目录 ${nextPath} 请求异常：${err.message}`, true);
+                        // 出错依然加入缓存，避免反复重试
+                        createdDirCache.add(nextPath);
+                        tempPath = nextPath;
+                    }
+                }
+            }
         }
 
         // 刷新目录列表
@@ -1006,8 +1121,25 @@
         // 拖拽 / 点击上传
         function setupUpload() {
             uploadZone.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => {
-                addFilesToQueue(Array.from(e.target.files));
+            fileInput.addEventListener('change', async (e) => {
+                const fileList = Array.from(e.target.files);
+                // 提取所有空文件夹（webkitRelativePath解析层级）
+                const dirSet = new Set();
+                fileList.forEach(f => {
+                    if (f.webkitRelativePath) {
+                        const dir = f.webkitRelativePath.replace(`/${f.name}`, '');
+                        if (dir) dirSet.add(dir);
+                    }
+                });
+                const allFileDirs = new Set(fileList.map(f => f.webkitRelativePath?.replace(`/${f.name}`, '')).filter(Boolean));
+                const emptyDirs = Array.from(dirSet).filter(d => !allFileDirs.has(d));
+                emptyDirs.sort((a, b) => a.split('/').length - b.split('/').length);
+                // 先立刻把文件加入上传队列，不阻塞
+                addFilesToQueue(fileList);
+                // 空目录创建丢进后台异步执行，不阻塞主线程与上传流程
+                createEmptyDirs(emptyDirs).catch(err => {
+                    showToast(`空目录创建任务异常：${err.message}`, true);
+                });
                 fileInput.value = '';
             });
 
@@ -1023,8 +1155,16 @@
             ['dragleave', 'drop'].forEach(ev => {
                 uploadZone.addEventListener(ev, () => uploadZone.classList.remove('drag-over'));
             });
-            uploadZone.addEventListener('drop', (e) => {
-                addFilesToQueue(Array.from(e.dataTransfer.files));
+            // 拖拽drop重构，读取目录树
+            uploadZone.addEventListener('drop', async (e) => {
+                const items = Array.from(e.dataTransfer.items).map(i => i.webkitGetAsEntry());
+                const { files, emptyDirs } = await readDataTransferEntries(items);
+                // 先立刻把文件加入上传队列
+                addFilesToQueue(files);
+                // 后台异步创建空目录，不阻塞上传
+                createEmptyDirs(emptyDirs).catch(err => {
+                    showToast(`空目录创建任务异常：${err.message}`, true);
+                });
             });
         }
 
