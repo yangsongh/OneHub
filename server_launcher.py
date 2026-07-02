@@ -578,11 +578,17 @@ class ServerManager:
                 console_format_str='\033[32m[%(asctime)s]\033[0m %(funcName)s-%(lineno)d %(log_color)s[新闻下载器] %(message)s'
             )
             news_downloader.run_downloader(
-                output_dir=config_manager.cfgs.get('news_save_dir', '/新闻'),
+                output_dir=config_manager.cfgs.get('news_save_dir', '新闻'),
                 speed=config_manager.cfgs.get('news_speed', 1.8), proxy="",
                 download_past_days=0, max_workers=1,
                 schedule_time=config_manager.cfgs.get(
                     'news_schedule_time', '16:00:00'),
+                max_retry_times=config_manager.cfgs.get(
+                    'news_max_retry_times', 4),
+                retry_interval_min=config_manager.cfgs.get(
+                    'news_retry_interval_min', 30),
+                run_immediately=config_manager.cfgs.get(
+                    'news_run_immediately', False),
             )
 
         except Exception as e:
