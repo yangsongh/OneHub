@@ -405,6 +405,13 @@
         let uploadTaskList = []; // 全部上传任务列表（包含待处理/上传中/成功/失败）
         let runningTaskCount = 0; // 当前正在并发上传的文件数量
 
+        // 上传速度计算缓存（基于全局总上传字节）
+        let uploadSpeedCache = {
+            totalFinishedBytes: 0, // 全局累计已上传总字节
+            lastTime: Date.now(),
+            speed: 0 // MB/s
+        };
+
         // 当前文件浏览器所在路径
         let currentPath = '';
         let news_page_pathname = '/news';
@@ -440,6 +447,20 @@
         // ========== 全局上传进度面板渲染 ==========
         function renderGlobalUploadStat() {
             const stat = calcGlobalUploadStat();
+            // ========== 全局实时速度计算 ==========
+            const now = Date.now();
+            const timeDelta = (now - uploadSpeedCache.lastTime) / 1000;
+            // 间隔大于1000ms才更新，避免频繁计算
+            if (timeDelta > 1.0) {
+                const byteDelta = stat.finishedBytes - uploadSpeedCache.totalFinishedBytes;
+                // 差值小于0直接置0，防止速度负数
+                const validByteDelta = Math.max(byteDelta, 0);
+                const mbDelta = validByteDelta / 1024 / 1024;
+                uploadSpeedCache.speed = Number((mbDelta / timeDelta).toFixed(2));
+                // 更新缓存基准为当前全局总字节
+                uploadSpeedCache.totalFinishedBytes = stat.finishedBytes;
+                uploadSpeedCache.lastTime = now;
+            }
             const globalPanelId = "global-upload-stat";
             let globalPanel = document.getElementById(globalPanelId);
 
@@ -465,10 +486,11 @@
             // 优先渲染面板最新状态
             globalPanel.innerHTML = `
                 <div style="font-weight:600; color:#1d4ed8; margin-bottom:8px;">批量上传总进度</div>
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:0.85rem; color:#334155;">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; font-size:0.85rem; color:#334155;">
                     <div>文件：${stat.finishedFileCount + stat.failedFileCount}/${stat.totalFileCount} (${filePercent}%)</div>
                     <div>分片：${stat.finishedChunkCount}/${stat.totalChunkCount} (${chunkPercent}%)</div>
                     <div>大小：${formatMB(stat.finishedBytes)}/${formatMB(stat.totalBytes)} (${bytePercent}%)</div>
+                    <div>实时速度：${uploadSpeedCache.speed} MB/s</div>
                 </div>
                 <div style="margin-top:10px; background:#dbeafe; border-radius:8px; height:6px; overflow:hidden;">
                     <div style="width:${bytePercent}%; height:100%; background:#2563eb; transition:width 0.2s;"></div>
@@ -479,6 +501,12 @@
             // 全部完成后的后置处理
             const allComplete = stat.finishedFileCount + stat.failedFileCount === stat.totalFileCount;
             if (allComplete) {
+                // 上传全部完成，清空速度缓存
+                uploadSpeedCache = {
+                    totalFinishedBytes: 0,
+                    lastTime: Date.now(),
+                    speed: 0
+                };
                 uploadTaskList = uploadTaskList.filter(t => t.status !== UploadStatus.SUCCESS);
                 fetchDirectory();
                 showToast(`上传结束：成功${stat.finishedFileCount}个，失败${stat.failedFileCount}个`);
