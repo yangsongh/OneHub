@@ -1,5 +1,6 @@
 ﻿import os
-import json5
+import re
+import json
 
 from functools import wraps
 from utils.utils_lib import LoggerManager
@@ -88,11 +89,19 @@ def get_config():
             logger.warning(err)
             return jsonify({"error": err}), 500
 
+        # with open(config_file, 'r', encoding='utf-8') as f:
+        #     config_data = json5.load(f)
+
+        # 读取并清理配置文件
         with open(config_file, 'r', encoding='utf-8') as f:
-            config_data = json5.load(f)
+            content = re.sub(r'//.*?$|/\*.*?\*/', '',
+                             f.read(), flags=re.MULTILINE | re.DOTALL)
+
+        # 解析JSON
+        config_data = json.loads(content)
 
         logger.info(f"配置文件 '{config_file}' 已成功发送给客户端：{client_ip}")
-        return jsonify(config_data), 200
+        return config_data, 200
 
     except Exception as e:
         err = f"解析或发送配置文件时发生错误：{e}"

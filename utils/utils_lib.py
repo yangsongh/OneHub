@@ -157,8 +157,10 @@ class ConfigManager:
 
                 # 如果解析结果为空，恢复默认配置
                 if not self.cfgs:
-                    self.logger.warning(f'{self.cfg_file} 解析为空，恢复默认配置')
-                    return self.restore_default_config()
+                    # self.logger.warning(f'{self.cfg_file} 解析为空，恢复默认配置')
+                    # return self.restore_default_config()
+                    self.logger.warning(f'配置文件 {self.cfg_file} 解析失败, 请检查文件')
+                    return False
 
                 return True
 
