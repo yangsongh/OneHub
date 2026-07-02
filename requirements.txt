@@ -2,7 +2,7 @@ cffi
 waitress
 flask
 pyftpdlib
-json5
+# json5
 colorlog
 websockets
 chardet
