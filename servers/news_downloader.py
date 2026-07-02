@@ -2,8 +2,10 @@ import time
 import yt_dlp
 import requests
 import argparse
+import functools
 import subprocess
 import concurrent.futures
+
 from pathlib import Path
 from datetime import datetime, timedelta
 from utils.utils_lib import LoggerManager
@@ -15,12 +17,15 @@ logger: LoggerManager = LoggerManager(no_file_handler=True)
 class VideoDownloader:
     """新闻视频下载器类"""
 
-    def __init__(self, output_dir: Path, speed: float, proxy: str):
+    def __init__(self, output_dir: Path, speed: float, proxy: str, max_retry_times: int, retry_interval_min: int):
         self.output_dir = output_dir.absolute()
         self.speed = speed
         self.proxy = proxy
         self.month_cache: Dict[str, Dict] = {}
 
+        # 下载重试配置
+        self.max_retry_times = max_retry_times
+        self.retry_interval_sec = retry_interval_min * 60
         # 视频源配置
         self.video_sources = [
             {
@@ -65,6 +70,26 @@ class VideoDownloader:
             filename = filename.replace(char, '')
         return filename
 
+    def retry_wrapper(self, max_retry: int, sleep_sec: int):
+        """通用重试装饰器，捕获异常循环重试"""
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                cnt = 0
+                while cnt < max_retry:
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        cnt += 1
+                        logger.warning(
+                            f"{func.__name__} 执行失败，重试{cnt}/{max_retry}，等待{sleep_sec}s：{repr(e)}")
+                        time.sleep(sleep_sec)
+                e = f"{func.__name__} 达到最大重试次数{max_retry}，放弃执行"
+                logger.error(e)
+                raise Exception(e)
+            return wrapper
+        return decorator
+
     def get_month_programs(self, year: int, month: int) -> Dict[str, Dict]:
         """获取指定月份的所有节目信息，返回按日期索引的字典"""
         month_str = f"{year}{month:02d}"
@@ -85,11 +110,14 @@ class VideoDownloader:
                 logger.info(f"正在获取 {source['type']} 的 {year}年{month}月节目列表...")
 
                 try:
-                    api_url = source["api_url"].format(month_str)
-                    response = requests.get(
-                        api_url, timeout=30, proxies=proxies)
-                    response.raise_for_status()
-                    data = response.json()
+                    @self.retry_wrapper(max_retry=self.max_retry_times, sleep_sec=self.retry_interval_sec//60)
+                    def fetch_api():
+                        api_url = source["api_url"].format(month_str)
+                        resp = requests.get(
+                            api_url, timeout=30, proxies=proxies)
+                        resp.raise_for_status()
+                        return resp.json()
+                    data = fetch_api()
                     programs = data.get("data", {}).get("list", [])
 
                     logger.info(f"成功获取 {source['type']} 的 {len(programs)} 个节目")
@@ -136,9 +164,12 @@ class VideoDownloader:
         cache_key = f"{year}-{month:02d}"
 
         # 使用缓存或重新获取月度数据
+        @self.retry_wrapper(max_retry=2, sleep_sec=10)
+        def load_month_cache():
+            self.month_cache[cache_key] = self.get_month_programs(year, month)
         if cache_key not in self.month_cache:
             logger.info(f"首次获取 {year}年{month}月的节目数据...")
-            self.month_cache[cache_key] = self.get_month_programs(year, month)
+            load_month_cache()
 
         # 从月度数据中查找指定日期的节目
         program = self.month_cache[cache_key].get(date_str)
@@ -167,7 +198,7 @@ class VideoDownloader:
             logger.error(f"[{Path(filename).name}] 下载出错: {d}")
 
     def download_video(self, url: str, output_file: Path, date_str: str, video_type: str) -> Tuple[str, Optional[Path], str]:
-        """使用yt-dlp下载视频"""
+        """使用yt-dlp下载视频（单次下载逻辑，无重试）"""
         logger.info(f"开始下载 {date_str} 的 {video_type} 视频, url: {url}")
 
         temp_video = output_file.with_suffix('.temp_video.mp4')
@@ -178,17 +209,27 @@ class VideoDownloader:
             "outtmpl": str(temp_video),                 # 输出文件名模板
             "proxy": self.proxy,                        # 代理
             "encoding": "utf-8",                        # 编码
-            # "windowsfilenames": True,                 # Windows文件名
+            "windowsfilenames": True,                   # Windows文件名
             "progress_hooks": [self._progress_hook],    # 下载进度回调
-            # "quiet": True,                              # 安静模式
+            # "quiet": True,                            # 安静模式
             "no_color": True,                           # 禁用彩色输出
             "noprogress": True,                         # 不显示自带进度条
             "concurrent_fragments": 1,                  # 单分片并发
             "no_part": True,                            # 禁用.part文件
             "keep_fragments": False,                    # 不保留分片
-            "hls_prefer_native": False,                 # 禁用 yt-dlp 原生 HLS 下载器（它容易产生碎片）
+            "hls_prefer_native": False,                 # 禁用 yt-dlp 原生 HLS 下载器
             # 改用 FFmpeg 直接拉流合并，不产生分片文件
             "downloader": {"hls": "ffmpeg"},
+            # "external_downloader_args": {               # ffmpeg网络参数，关闭持久连接、开启自动重连
+            #     "ffmpeg": [
+            #         "-http_persistent", "0",            # 关闭HLS HTTP长连接
+            #         "-reconnect", "1",
+            #         "-reconnect_streamed", "1",
+            #         "-reconnect_on_network_error", "1",
+            #         "-reconnect_delay_max", "5",
+            #         "-rw_timeout", "10000000",
+            #     ]
+            # }
         }
 
         try:
@@ -203,11 +244,41 @@ class VideoDownloader:
                 return (date_str, downloaded_path, video_type)
 
         except Exception as e:
-            logger.error(f"下载 {date_str} 视频时出错: {repr(e)}")
+            logger.error(f"单次下载 {date_str} 视频时出错: {repr(e)}")
             return (date_str, None, video_type)
 
+    def download_video_with_retry(self, url: str, output_file: Path, date_str: str, video_type: str) -> Tuple[str, Optional[Path], str]:
+        """带自动重试的下载封装，循环重试直到成功或达到最大次数"""
+        retry_count = 0
+        while retry_count < self.max_retry_times:
+            res = self.download_video(url, output_file, date_str, video_type)
+            date_ret, path_ret, typ_ret = res
+            if path_ret is not None:
+                # 下载成功，直接返回
+                return res
+            retry_count += 1
+            remain_retry = self.max_retry_times - retry_count
+            logger.warning(
+                f"{date_str} 下载失败，当前重试次数 {retry_count}/{self.max_retry_times}，剩余重试{remain_retry}次，等待{self.retry_interval_sec//60}分钟后重试")
+            # 等待指定间隔
+            time.sleep(self.retry_interval_sec)
+        # 全部重试用完仍失败
+        logger.error(f"{date_str} 已达到最大重试次数{self.max_retry_times}，放弃下载")
+        return (date_str, None, video_type)
+
     def process_video(self, input_path: Path, output_path: Path, duration_seconds: float, video_type: str, date_str: str) -> bool:
-        """使用ffmpeg处理视频：先裁剪（直接复制流），再加速（视频流复制+音频流高效处理），最后重命名"""
+        """使用ffmpeg处理视频：先裁剪（直接复制流），再加速，最后重命名
+
+            ffmpeg下载临时文件（临时文件）
+                ↓
+            输出裁剪文件（临时文件，裁剪文件）
+                ↓
+            输出加速文件（临时文件，裁剪文件，加速文件）
+                ↓
+            加速文件重命名最终输出（临时文件，裁剪文件，最终输出）
+                ↓
+            删除临时文件、裁剪文件（最终输出）
+        """
         try:
             # 获取裁剪参数
             trim_params = self.trim_config.get(
@@ -225,44 +296,43 @@ class VideoDownloader:
                 logger.error(f"视频时长 {duration_seconds}秒 太短，无法裁剪")
                 return False
 
-            # 优化裁剪命令：-c copy 直接复制流（快速无损失），-avoid_negative_ts make_zero 修复时间戳问题
-            cmd_trim = (
-                f'ffmpeg -ss {str(trim_start)} -i "{str(input_path)}" -to {str(end_time)} '
-                f'-c:v copy -c:a copy -avoid_negative_ts make_zero -y '
-                f'"{str(temp_trimmed)}" -loglevel error -hide_banner'
-            )
+            # 尝试快速复制流裁剪，如果失败（如非关键帧），降级为重新编码
             try:
-                # 尝试快速复制流裁剪，如果失败（如非关键帧），降级为重新编码
-                result = subprocess.run(
-                    cmd_trim,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    shell=True,
-                    encoding='utf-8',
-                    errors='replace'
+                @self.retry_wrapper(max_retry=2, sleep_sec=3)
+                def run_trim_cmd(cmd, check=True):
+                    ret = subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        check=check,
+                        shell=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                    return ret
+                
+                # 优化裁剪命令：-c copy 直接复制流（快速无损失），-avoid_negative_ts make_zero 修复时间戳问题
+                cmd_trim = (
+                    f'ffmpeg -ss {str(trim_start)} -i "{str(input_path)}" -to {str(end_time)} '
+                    f'-c:v copy -c:a copy -avoid_negative_ts make_zero -y '
+                    f'"{str(temp_trimmed)}" -loglevel error -hide_banner'
                 )
-                if result.returncode != 0:
-                    logger.warning(f"快速裁剪失败（非关键帧），降级为重新编码裁剪: {result.stderr}")
+                try:
+                    result = run_trim_cmd(cmd_trim)
+                except Exception as e:
+                    logger.warning(f"快速裁剪失败（非关键帧），降级为重新编码裁剪: {e}")
                     cmd_trim_fallback = (
                         f'ffmpeg -ss {str(trim_start)} -i "{str(input_path)}" -to {str(end_time)} '
                         f'-c:v libx264 -preset fast -crf 23 -c:a aac -y '
                         f'"{str(temp_trimmed)}" -loglevel error -hide_banner'
                     )
-                    subprocess.run(
-                        cmd_trim_fallback,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        check=True,
-                        shell=True,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
+                    result = run_trim_cmd(cmd_trim_fallback, check=True)
+
                 logger.info(
                     f"ffmpeg裁剪命令执行成功（{(cmd_trim.split('-c:v')[1].split()[0]).strip()}模式）")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"ffmpeg裁剪失败:\n{e.stderr}")
+            except Exception as e:
+                logger.error(f"ffmpeg裁剪失败:\n{e}")
                 raise
             # finally:
             #     input_path.unlink(missing_ok=True)
@@ -299,32 +369,35 @@ class VideoDownloader:
             )
 
             try:
-                subprocess.run(
-                    cmd_speed,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=True,
-                    shell=True,
-                    encoding='utf-8',
-                    errors='replace'
-                )
+                @self.retry_wrapper(max_retry=2, sleep_sec=3)
+                def run_speed_cmd(cmd):
+                    subprocess.run(
+                        cmd_speed,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        check=True,
+                        shell=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                run_speed_cmd(cmd_speed)
                 logger.info(f"ffmpeg加速命令执行成功")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"ffmpeg加速失败:\n{e.stderr}")
+            except Exception as e:
+                logger.error(f"ffmpeg加速失败:\n{e}")
                 raise
-            finally:
-                temp_trimmed.unlink(missing_ok=True)
+            # finally:
+            #     temp_trimmed.unlink(missing_ok=True)
 
-            # ===== 第三步：将中间文件重命名为最终目标文件 =====
-            logger.info(f"将 {date_str} 中间文件重命名为最终输出: {output_path}")
+            # ===== 第三步：将加速文件重命名为最终目标文件 =====
+            logger.info(f"将 {date_str} 加速文件重命名为最终输出: {output_path}")
             if output_path.exists():
                 output_path.unlink()  # 如果目标文件已存在，先删除
             temp_accelerated.rename(output_path)
 
             return True
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             logger.error(f"处理 {date_str} 视频时出错: {repr(e)}")
             return False
         finally:
@@ -354,6 +427,12 @@ class VideoDownloader:
     def download_and_process_videos(self, dates_to_download: List[datetime], max_workers: int) -> int:
         """下载和处理指定日期的视频"""
         logger.info(f"开始处理 {len(dates_to_download)} 个视频")
+
+        # 每次执行前强制删除当月缓存（需要每日刷新节目时用）
+        today = datetime.now()
+        cache_key = f"{today.year}-{today.month:02d}"
+        if cache_key in self.month_cache:
+            del self.month_cache[cache_key]
 
         # 预先获取需要的月份数据
         months_needed = set((date.year, date.month)
@@ -396,8 +475,8 @@ class VideoDownloader:
                 except Exception as e:
                     logger.error(f"获取 {date_str} 视频信息时出错: {repr(e)}")
 
-        # 第二阶段：多线程下载视频
-        logger.info("第二阶段：多线程下载视频...")
+        # 第二阶段：多线程下载视频（使用带重试的方法）
+        logger.info("第二阶段：多线程下载视频（自动重试开启）...")
         download_results = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -412,9 +491,9 @@ class VideoDownloader:
                     logger.info(f"视频已存在，跳过: {output_file}")
                     continue
 
-                # 提交下载任务
+                # 提交带重试的下载任务
                 future = executor.submit(
-                    self.download_video,
+                    self.download_video_with_retry,
                     info["program"]["url"],
                     output_file,
                     date_str,
@@ -430,9 +509,9 @@ class VideoDownloader:
                 try:
                     result = future.result()
                     download_results.append((info, result))
-                    logger.info(f"下载任务完成: {date_str}")
+                    logger.info(f"{date_str} 下载任务（含重试）执行完毕")
                 except Exception as e:
-                    logger.error(f"下载 {date_str} 失败: {repr(e)}")
+                    logger.error(f"下载 {date_str} 任务异常: {repr(e)}")
 
         # 第三阶段：多线程处理视频
         logger.info("第三阶段：多线程处理视频...")
@@ -441,8 +520,8 @@ class VideoDownloader:
             future_processes = []
 
             for info, download_result in download_results:
-                if download_result[1] is None:  # 下载失败
-                    logger.error(f"跳过处理，下载失败: {info['date_str']}")
+                if download_result[1] is None:  # 下载失败（重试耗尽）
+                    logger.error(f"跳过处理，下载重试全部失败: {info['date_str']}")
                     continue
 
                 _, temp_video_path, video_type = download_result
@@ -471,9 +550,10 @@ class VideoDownloader:
 
 
 def run_task(output_dir: Path, speed: float, proxy: str,
-             download_past_days: int, max_workers: int) -> bool:
+             download_past_days: int, max_workers: int, max_retry_times: int, retry_interval_min: int) -> bool:
     """运行任务：下载和处理视频"""
-    downloader = VideoDownloader(output_dir, speed, proxy)
+    downloader = VideoDownloader(
+        output_dir, speed, proxy, max_retry_times, retry_interval_min)
     today = datetime.now()
 
     logger.info(f"开始执行下载任务，日期: {today.strftime('%Y-%m-%d')}")
@@ -492,7 +572,8 @@ def run_task(output_dir: Path, speed: float, proxy: str,
 
 
 def run_downloader(output_dir: Path, speed: float, proxy: str,
-                   download_past_days: int, max_workers: int, schedule_time: str, run_immediately = False):
+                   download_past_days: int, max_workers: int, schedule_time: str,
+                   max_retry_times: int, retry_interval_min: int, run_immediately: bool):
     """启动下载器"""
     output_dir = Path(output_dir).absolute()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -506,7 +587,8 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
 
     logger.info(
         f"下载器配置：输出目录 = {output_dir}, 视频速度 = {speed}, 代理 = {proxy}, "
-        f"下载过去天数: {download_past_days}, 最大线程数 = {max_workers}, 计划执行时间 = {schedule_time}"
+        f"下载过去天数: {download_past_days}, 最大线程数 = {max_workers}, 计划执行时间 = {schedule_time}, "
+        f"下载最大重试次数={max_retry_times}, 重试间隔={retry_interval_min}分钟"
     )
 
     # 记录上次执行的时间戳（用于防止同一天内多次触发）
@@ -516,7 +598,7 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
     if run_immediately:
         successful_count = run_task(
             output_dir, speed, proxy,
-            download_past_days, max_workers
+            download_past_days, max_workers, max_retry_times, retry_interval_min
         )
     else:
         successful_count = 0
@@ -544,7 +626,7 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
                 try:
                     run_task(
                         output_dir, speed, proxy,
-                        download_past_days, max_workers
+                        download_past_days, max_workers, max_retry_times, retry_interval_min
                     )
                     last_execution_date = current_date  # 标记今天已执行
                     # logger.info(f"{today_str} 的任务执行完毕")
@@ -560,7 +642,7 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="新闻下载器")
     parser.add_argument("--output-dir", "-o", type=str,
-                        default="新闻联播", help="视频保存路径（默认：'新闻联播'）")
+                        default="新闻联播", help="视频保存路径 (默认：'新闻')")
     parser.add_argument("--speed", type=float, default=1.8,
                         help="视频加速倍数, 默认: 1.8")
     parser.add_argument("--proxy", type=str, default="",
@@ -571,13 +653,25 @@ if __name__ == "__main__":
                         default=2, help="最大线程数, 默认: 2")
     parser.add_argument("--schedule-time", type=str, default="17:00:00",
                         help="每日定时执行时间 (格式: HH:MM:SS), 默认: 17:00:00")
+    parser.add_argument("--max-retry", type=int, default=4,
+                        help="下载失败最大重试次数, 默认4次")
+    parser.add_argument("--retry-interval", type=int, default=30,
+                        help="重试间隔 (单位: 分钟), 默认30分钟")
+    parser.add_argument("--run-immediately", action="store_true",
+                        help="启动程序后立即执行一次下载, 不等待定时时间")
 
     try:
         args = parser.parse_args()
         run_downloader(
-            output_dir=args.output_dir, speed=args.speed,
-            proxy=args.proxy, download_past_days=args.download_past_days,
-            max_workers=args.max_workers, schedule_time=args.schedule_time
+            output_dir=args.output_dir,
+            speed=args.speed,
+            proxy=args.proxy,
+            download_past_days=args.download_past_days,
+            max_workers=args.max_workers,
+            schedule_time=args.schedule_time,
+            max_retry_times=args.max_retry,
+            retry_interval_min=args.retry_interval,
+            run_immediately=args.run_immediately
         )
     except KeyboardInterrupt:
         logger.info("程序被用户终止")

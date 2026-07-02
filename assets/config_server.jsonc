@@ -68,6 +68,9 @@
     "news_save_dir": "../../服务器文件/新闻", // 新闻联播保存路径
     "news_speed": 1.8, // 新闻加速速度
     "news_schedule_time": "16:00:00", // 新闻下载时间
+    "news_max_retry_times": 4, // 新闻最大重试次数
+    "news_retry_interval_min": 30, // 新闻重试间隔 (min)
+    "news_run_immediately": false, // 启动服务器后是否立即下载新闻
     // LocalProxy服务器配置
     "localproxy_vercode": 202606171, // 版本号
     "localproxy_username": "", // 官网用户名
