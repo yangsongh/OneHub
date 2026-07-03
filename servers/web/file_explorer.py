@@ -31,7 +31,7 @@ UPLOAD_FILE_MIN_FREE_SPACE = 0
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 
 # 分片上传配置
-CHUNK_SIZE = 1024 * 1024 * 1024  # 和前端分片大小保持一致
+CHUNK_SIZE = 50 * 1024 * 1024  # 和前端分片大小保持一致
 CHUNK_TMP_DIR = ".chunk_tmp"  # 分片临时存储目录
 
 
@@ -351,7 +351,7 @@ def serve_file(filepath=''):
         # 对文件名进行URL编码（兼容RFC 5987）
         encoded_filename = urllib.parse.quote(filename, encoding='utf-8')
         # 文件大小阈值
-        FILE_SIZE_THRESHOLD = 2 * 1024 * 1024 * 1024
+        FILE_SIZE_THRESHOLD = 1.95 * 1024 * 1024 * 1024
 
         # 文本格式, 转码+浏览器内预览
         if is_text_file(full_path):
@@ -361,8 +361,7 @@ def serve_file(filepath=''):
             return response
         # 判断文件大小：小于阈值直接使用send_file
         elif file_size < FILE_SIZE_THRESHOLD:
-            resp = send_file(full_path)
-            return resp
+            return send_file(full_path)
         # 大文件流式下载
         else:
             def stream_large_file():

@@ -389,7 +389,7 @@
         // ========== 上传全局配置 & 状态管理 ==========
         const UPLOAD_CONFIG = {
             MAX_CONCURRENT: 3,        // 最大并发上传文件数
-            CHUNK_SIZE: 1024 * 1024 * 1024, // 1G分片
+            CHUNK_SIZE: 50 * 1024 * 1024, // 50MB分片
             MAX_RETRY: 2,             // 分片失败重试次数
             PROGRESS_AUTO_CLOSE_MS: 2500
         };

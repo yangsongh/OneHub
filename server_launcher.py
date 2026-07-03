@@ -507,7 +507,10 @@ class ServerManager:
                 threads=config_manager.cfgs.get('web_server_threads', 5),
                 max_request_body_size=max_upload_size,
                 connection_limit=config_manager.cfgs.get(
-                    'connection_limit', 1000),
+                    'waitress_connection_limit', 1000),
+                inbuf_overflow=config_manager.cfgs.get(
+                    'waitress_inbuf_overflow', 100 * 1024 * 1024
+                )
             )
 
         except Exception as e:

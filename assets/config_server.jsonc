@@ -62,7 +62,8 @@
     "news_dir_basename": "新闻", // 新闻联播目录名称，用于防止新闻页面被屏蔽
     "upload_file_min_free_space": 314572800, // 上传文件后最小允许的磁盘空闲空间 (300MB)
     "max_upload_size": 2040109465, // 最大单文件上传大小 (1.9GB)
-    "connection_limit": 1000, // 最大连接数限制
+    "waitress_connection_limit": 1000, // 最大连接数限制
+    "waitress_inbuf_overflow": 104857600, // 内存缓冲区阈值 (100MB)
     "tmp_dir": "/data/data/ru.iiec.pydroid3/cache", // 临时文件储存位置
     // 新闻联播下载器配置
     "news_save_dir": "../../服务器文件/新闻", // 新闻联播保存路径
