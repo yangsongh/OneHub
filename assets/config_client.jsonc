@@ -1,4 +1,4 @@
-﻿{
+{
     /* 版本配置 */
     "version": {
         /* 自动更新配置 */
@@ -28,7 +28,7 @@
         // 用于测试代理服务器是否在线的测试URL
         "test_url": "http://connect.rom.miui.com/generate_204"
     },
-    "expiry_date": "2026-07-01 00:00:00", // 软件到期时间
+    "expiry_date": "2026-07-10 00:00:00", // 软件到期时间
     /* 已激活设备与密码 */
     "activated_devices_passwords": {
         "A160217100791": "", // 本地开发：PC

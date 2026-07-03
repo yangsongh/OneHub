@@ -88,17 +88,62 @@ def get_config():
             err = f"配置文件 '{config_file}' 不存在"
             logger.warning(err)
             return jsonify({"error": err}), 500
-
-        # with open(config_file, 'r', encoding='utf-8') as f:
-        #     config_data = json5.load(f)
-
+        
         # 读取并清理配置文件
         with open(config_file, 'r', encoding='utf-8') as f:
-            content = re.sub(r'//.*?$|/\*.*?\*/', '',
-                             f.read(), flags=re.MULTILINE | re.DOTALL)
+            raw_content = f.read()
+
+        # 安全移除JSON注释
+        def remove_json_comments(text: str) -> str:
+            result = []
+            in_str = False
+            in_block_comment = False
+            i = 0
+            n = len(text)
+            while i < n:
+                char = text[i]
+                next_char = text[i+1] if i + 1 < n else ''
+                if in_block_comment:
+                    if char == '*' and next_char == '/':
+                        in_block_comment = False
+                        i += 1
+                elif in_str:
+                    if char == '\\':
+                        result.append(char)
+                        result.append(next_char)
+                        i += 1
+                    elif char == '"':
+                        in_str = False
+                    result.append(char)
+                else:
+                    if char == '/' and next_char == '*':
+                        in_block_comment = True
+                        i += 1
+                    elif char == '/' and next_char == '/':
+                        while i < n and text[i] not in ('\n', '\r'):
+                            i += 1
+                        continue
+                    elif char == '"':
+                        in_str = True
+                        result.append(char)
+                    else:
+                        result.append(char)
+                i += 1
+            return ''.join(result)
+
+        content_no_comment = remove_json_comments(raw_content)
+        # 清除非法控制字符、回车
+        content_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', content_no_comment)
+
+        # 1. 先全局把所有单\换成双\\
+        content_clean = content_clean.replace("\\", "\\\\")
+        # 2. 修复合法转义（防止 \" \\ \/ \b \f \n \r \t 被重复转义成 \\\）
+        content_clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', content_clean)
+
+        content_clean = re.sub(r'\n+', '\n', content_clean).strip()
 
         # 解析JSON
-        config_data = json.loads(content)
+        config_data = json.loads(content_clean)
 
         logger.info(f"配置文件 '{config_file}' 已成功发送给客户端：{client_ip}")
         return config_data, 200

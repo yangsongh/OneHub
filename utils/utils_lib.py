@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author : yangsongh
 # @File : utils_lib.py
-# @Version : 1.0.6
+# @Version : 1.0.7
 
 import os
 import re
@@ -138,6 +138,46 @@ class ConfigManager:
         self.cfgs = self.deft_cfgs.copy()
         self.cfg_lock = threading.RLock()
 
+    # 内部工具：安全移除JSONC注释（区分字符串内外，不破坏路径/文本）
+    def _remove_json_comments(self, text: str) -> str:
+        result = []
+        in_str = False
+        in_block_comment = False
+        i = 0
+        n = len(text)
+        while i < n:
+            char = text[i]
+            next_char = text[i+1] if i + 1 < n else ''
+
+            if in_block_comment:
+                if char == '*' and next_char == '/':
+                    in_block_comment = False
+                    i += 1
+            elif in_str:
+                if char == '\\':
+                    result.append(char)
+                    result.append(next_char)
+                    i += 1
+                elif char == '"':
+                    in_str = False
+                result.append(char)
+            else:
+                if char == '/' and next_char == '*':
+                    in_block_comment = True
+                    i += 1
+                elif char == '/' and next_char == '/':
+                    # 单行注释，跳到换行
+                    while i < n and text[i] not in ('\n', '\r'):
+                        i += 1
+                    continue
+                elif char == '"':
+                    in_str = True
+                    result.append(char)
+                else:
+                    result.append(char)
+            i += 1
+        return ''.join(result)
+
     def load_configs(self) -> bool:
         """加载配置文件"""
         with self.cfg_lock:
@@ -147,19 +187,29 @@ class ConfigManager:
                     self.logger.warning(f'{self.cfg_file} 不存在或为空，恢复默认配置')
                     return self.restore_default_config()
 
-                # 读取并清理配置文件
+                # 读取原始文本
                 with open(self.cfg_file, 'r', encoding='utf-8') as f:
-                    content = re.sub(r'//.*?$|/\*.*?\*/', '',
-                                     f.read(), flags=re.MULTILINE | re.DOTALL)
+                    raw_text = f.read()
 
-                # 解析JSON
-                self.cfgs = json.loads(content)
+                # 1. 安全删除注释
+                no_comment = self._remove_json_comments(raw_text)
+
+                # 2. 清除非法ASCII控制字符（解决 Invalid control character）
+                clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
+
+                # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
+                clean = clean.replace("\\", "\\\\")
+                clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', clean)
+
+                # 4. 合并多余空行
+                clean = re.sub(r'\n+', '\n', clean).strip()
+
+                # 解析标准JSON
+                self.cfgs = json.loads(clean)
 
                 # 如果解析结果为空，恢复默认配置
                 if not self.cfgs:
-                    # self.logger.warning(f'{self.cfg_file} 解析为空，恢复默认配置')
-                    # return self.restore_default_config()
-                    self.logger.warning(f'配置文件 {self.cfg_file} 解析失败, 请检查文件')
+                    self.logger.warning(f'配置文件 {self.cfg_file} 解析为空，请检查文件')
                     return False
 
                 return True
@@ -169,12 +219,13 @@ class ConfigManager:
                 return self.restore_default_config()
 
     def save_config(self) -> bool:
-        """保存配置文件"""
+        """保存配置文件（输出标准无注释JSON）"""
         with self.cfg_lock:
             try:
                 with open(self.cfg_file, 'w', encoding='utf-8') as f:
                     json.dump(self.cfgs, f, ensure_ascii=False, indent=4)
-            except:
+            except Exception as e:
+                self.logger.error(f"保存配置失败: {e}")
                 return False
             return True
 
@@ -184,8 +235,7 @@ class ConfigManager:
             if key_name:
                 self.cfgs[key_name] = self.deft_cfgs[key_name]
             else:
-                self.cfgs = self.deft_cfgs  # 恢复整个配置
-
+                self.cfgs = self.deft_cfgs.copy()  # 防止引用覆盖默认字典
             return self.save_config()
 
 
