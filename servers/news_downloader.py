@@ -642,7 +642,7 @@ def run_downloader(output_dir: Path, speed: float, proxy: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="新闻下载器")
     parser.add_argument("--output-dir", "-o", type=str,
-                        default="新闻联播", help="视频保存路径 (默认：'新闻')")
+                        default="新闻", help="视频保存路径 (默认：'新闻')")
     parser.add_argument("--speed", type=float, default=1.8,
                         help="视频加速倍数, 默认: 1.8")
     parser.add_argument("--proxy", type=str, default="",
@@ -657,10 +657,11 @@ if __name__ == "__main__":
                         help="下载失败最大重试次数, 默认4次")
     parser.add_argument("--retry-interval", type=int, default=30,
                         help="重试间隔 (单位: 分钟), 默认30分钟")
-    parser.add_argument("--run-immediately", action="store_true",
-                        help="启动程序后立即执行一次下载, 不等待定时时间")
+    parser.add_argument("--run-immediately", default=True, action="store_true",
+                        help="启动程序后立即执行一次下载, 不等待定时时间, 默认打开")
 
     try:
+        logger: LoggerManager = LoggerManager(no_file_handler=True)
         args = parser.parse_args()
         run_downloader(
             output_dir=args.output_dir,
