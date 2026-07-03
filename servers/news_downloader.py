@@ -18,7 +18,7 @@ class VideoDownloader:
     """新闻视频下载器类"""
 
     def __init__(self, output_dir: Path, speed: float, proxy: str, max_retry_times: int, retry_interval_min: int):
-        self.output_dir = output_dir.absolute()
+        self.output_dir = output_dir.absolute().resolve()
         self.speed = speed
         self.proxy = proxy
         self.month_cache: Dict[str, Dict] = {}

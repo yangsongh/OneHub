@@ -65,7 +65,7 @@
     "connection_limit": 1000, // 最大连接数限制
     "tmp_dir": "/data/data/ru.iiec.pydroid3/cache", // 临时文件储存位置
     // 新闻联播下载器配置
-    "news_save_dir": "../服务器文件/新闻", // 新闻联播保存路径
+    "news_save_dir": "../../服务器文件/新闻", // 新闻联播保存路径
     "news_speed": 1.8, // 新闻加速速度
     "news_schedule_time": "16:00:00", // 新闻下载时间
     "news_max_retry_times": 4, // 新闻最大重试次数
