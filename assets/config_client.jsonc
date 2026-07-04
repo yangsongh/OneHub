@@ -5,7 +5,7 @@
         "auto_update": true, // 是否自动更新
         "zip_url": "http://172.16.192.1/localproxy/downloads/LocalProxyPortable.zip", // 压缩包下载链接
         "zip_pwd": "", // 压缩包密码
-        "extract_path": "%APPDATA%", // 解压路径
+        "extract_path": "..", // 解压路径
         /* 客户端版本更新检测配置 */
         "latest_vercode": 202606171, // 最新版本号
         // 更新内容
