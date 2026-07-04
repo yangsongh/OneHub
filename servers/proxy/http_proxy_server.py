@@ -124,7 +124,8 @@ class HTTPProxyServer:
                 if thread_id in self.active_threads:
                     del self.active_threads[thread_id]
 
-            self.logger.debug(f"线程[{thread_id}] 连接处理完成")
+            current_thread_count = len(self.active_threads)
+            self.logger.debug(f"线程[{thread_id}] 连接处理完成，活动线程数: {current_thread_count}")
 
     def handle_http_proxy(self, client_socket: socket.socket, request_data: bytes, url: str, thread_id: int):
         """处理HTTP代理请求"""

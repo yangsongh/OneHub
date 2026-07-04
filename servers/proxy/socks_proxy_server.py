@@ -131,8 +131,8 @@ class SocksProxyServer:
                 if thread_id in self.active_threads:
                     del self.active_threads[thread_id]
 
-            self.log_thread_count()
-            self.logger.debug(f"线程[{thread_id}] 连接处理完成")
+            current_thread_count = len(self.active_threads)
+            self.logger.debug(f"线程[{thread_id}] 连接处理完成，活动线程数: {current_thread_count}")
 
     @staticmethod
     def create_target_socket(target_host: str) -> socket.socket:
@@ -440,7 +440,6 @@ class SocksProxyServer:
                         )
                         self.active_threads[thread_id] = client_thread
 
-                    self.log_thread_count()
                     client_thread.start()
 
                 except socket.timeout:
