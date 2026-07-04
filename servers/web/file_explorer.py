@@ -574,13 +574,24 @@ def merge_chunk(dirpath=''):
             return jsonify({'success': False, 'message': '文件已存在'}), 400
 
         # 合并分片写入最终文件
+        CHUNK_BUFFER_SIZE = 1 * 1024 * 1024  # 缓冲区1MB
         with open(full_path, "wb") as out_f:
             for chunk_path in chunk_files:
                 if not chunk_path:
                     clean_chunk_folder(chunk_dir)
-                    return jsonify({'success': False, 'message': '非法路径, 请检查文件名中是否有特殊字符'}), 400
+                    return jsonify({
+                        'success': False,
+                        'message': '非法路径, 请检查文件名中是否有特殊字符'
+                    }), 400
+                
+                # 分段读取分片，循环写入目标文件
                 with open(chunk_path, "rb") as in_f:
-                    out_f.write(in_f.read())
+                    while True:
+                        # 每次读取缓冲区大小的数据
+                        data = in_f.read(CHUNK_BUFFER_SIZE)
+                        if not data:
+                            break  # 读到文件末尾退出循环
+                        out_f.write(data)
 
         # 清理分片临时文件
         clean_chunk_folder(chunk_dir)
