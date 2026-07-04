@@ -139,7 +139,9 @@ def get_config():
         # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
         content_clean = content_clean.replace("\\", "\\\\")
         content_clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', content_clean)
-        # 4. 合并多余空行
+        # 4. 剩下多余的连续双斜杠统一修正为单层转义斜杠
+        content_clean = re.sub(r'\\\\', r'\\', content_clean)
+        # 5. 合并多余空行
         content_clean = re.sub(r'\n+', '\n', content_clean).strip()
 
         # 解析标准JSON

@@ -189,20 +189,22 @@ class ConfigManager:
 
                 # 读取原始文本
                 with open(self.cfg_file, 'r', encoding='utf-8') as f:
-                    raw_text = f.read()
+                    raw_content = f.read()
 
                 # 1. 安全删除注释
-                no_comment = self._remove_json_comments(raw_text)
+                no_comment = self._remove_json_comments(raw_content)
                 # 2. 清除非法ASCII控制字符（解决 Invalid control character）
-                clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
+                content_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
                 # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
-                clean = clean.replace("\\", "\\\\")
-                clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', clean)
-                # 4. 合并多余空行
-                clean = re.sub(r'\n+', '\n', clean).strip()
+                content_clean = content_clean.replace("\\", "\\\\")
+                content_clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', content_clean)
+                # 4. 剩下多余的连续双斜杠统一修正为单层转义斜杠
+                content_clean = re.sub(r'\\\\', r'\\', content_clean)
+                # 5. 合并多余空行
+                content_clean = re.sub(r'\n+', '\n', content_clean).strip()
 
                 # 解析标准JSON
-                self.cfgs = json.loads(clean)
+                self.cfgs = json.loads(content_clean)
 
                 # 解析结果为空
                 if not self.cfgs:
