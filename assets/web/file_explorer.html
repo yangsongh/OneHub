@@ -374,7 +374,13 @@
         <div class="upload-zone" id="uploadZone">
             <div class="upload-text">点击或拖拽文件/文件夹到这里上传</div>
             <div class="upload-hint">支持任意格式文件、完整文件夹上传，自动还原目录结构</div>
-            <input type="file" id="fileInput" style="display: none;" multiple webkitdirectory directory />
+            <div style="margin-top:10px;display:flex;gap:12px;justify-content:center;">
+                <button id="selectFileBtn" class="btn-primary" style="padding:6px 16px;font-size:0.85rem;">选择文件</button>
+                <button id="selectDirBtn" class="btn-primary" style="padding:6px 16px;font-size:0.85rem;">选择文件夹</button>
+            </div>
+            <!-- 两个独立input，分别负责文件 / 文件夹 -->
+            <input type="file" id="fileInput" style="display: none;" multiple />
+            <input type="file" id="dirInput" style="display: none;" webkitdirectory directory multiple />
         </div>
     </div>
 
@@ -1120,8 +1126,26 @@
 
         // 拖拽 / 点击上传
         function setupUpload() {
-            uploadZone.addEventListener('click', () => fileInput.click());
+            const selectFileBtn = document.getElementById('selectFileBtn');
+            const selectDirBtn = document.getElementById('selectDirBtn');
+            const fileInput = document.getElementById('fileInput');
+            const dirInput = document.getElementById('dirInput');
+
+            // 按钮：选择单个/多个文件
+            selectFileBtn.addEventListener('click', () => fileInput.click());
+            // 按钮：选择整个文件夹
+            selectDirBtn.addEventListener('click', () => dirInput.click());
+
+            // 文件input 变更事件（只选文件）
             fileInput.addEventListener('change', async (e) => {
+                const fileList = Array.from(e.target.files);
+                // 文件模式没有层级目录，无需创建空文件夹
+                addFilesToQueue(fileList);
+                fileInput.value = '';
+            });
+
+            // 文件夹input 变更事件（带目录结构）
+            dirInput.addEventListener('change', async (e) => {
                 const fileList = Array.from(e.target.files);
                 // 提取所有空文件夹（webkitRelativePath解析层级）
                 const dirSet = new Set();
@@ -1140,9 +1164,10 @@
                 createEmptyDirs(emptyDirs).catch(err => {
                     showToast(`空目录创建任务异常：${err.message}`, true);
                 });
-                fileInput.value = '';
+                dirInput.value = '';
             });
 
+            // 拖拽逻辑不变，拖拽同时支持文件+文件夹
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
                 uploadZone.addEventListener(ev, (e) => {
                     e.preventDefault();
