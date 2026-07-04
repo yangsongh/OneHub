@@ -93,8 +93,8 @@ def get_config():
         with open(config_file, 'r', encoding='utf-8') as f:
             raw_content = f.read()
 
-        # 安全移除JSON注释
-        def remove_json_comments(text: str) -> str:
+        # 内部工具：安全移除JSONC注释（区分字符串内外，不破坏路径/文本）
+        def _remove_json_comments(text: str) -> str:
             result = []
             in_str = False
             in_block_comment = False
@@ -120,6 +120,7 @@ def get_config():
                         in_block_comment = True
                         i += 1
                     elif char == '/' and next_char == '/':
+                        # 单行注释，跳到换行
                         while i < n and text[i] not in ('\n', '\r'):
                             i += 1
                         continue
@@ -131,18 +132,17 @@ def get_config():
                 i += 1
             return ''.join(result)
 
-        content_no_comment = remove_json_comments(raw_content)
-        # 清除非法控制字符、回车
-        content_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', content_no_comment)
-
-        # 1. 先全局把所有单\换成双\\
+        # 1. 安全删除注释
+        no_comment = _remove_json_comments(raw_content)
+        # 2. 清除非法ASCII控制字符（解决 Invalid control character）
+        content_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
+        # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
         content_clean = content_clean.replace("\\", "\\\\")
-        # 2. 修复合法转义（防止 \" \\ \/ \b \f \n \r \t 被重复转义成 \\\）
         content_clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', content_clean)
-
+        # 4. 合并多余空行
         content_clean = re.sub(r'\n+', '\n', content_clean).strip()
 
-        # 解析JSON
+        # 解析标准JSON
         config_data = json.loads(content_clean)
 
         logger.info(f"配置文件 '{config_file}' 已成功发送给客户端：{client_ip}")

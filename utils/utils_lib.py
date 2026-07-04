@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author : yangsongh
 # @File : utils_lib.py
-# @Version : 1.0.7
+# @Version : 1.0.8
 
 import os
 import re
@@ -193,21 +193,18 @@ class ConfigManager:
 
                 # 1. 安全删除注释
                 no_comment = self._remove_json_comments(raw_text)
-
                 # 2. 清除非法ASCII控制字符（解决 Invalid control character）
                 clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
-
                 # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
                 clean = clean.replace("\\", "\\\\")
                 clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', clean)
-
                 # 4. 合并多余空行
                 clean = re.sub(r'\n+', '\n', clean).strip()
 
                 # 解析标准JSON
                 self.cfgs = json.loads(clean)
 
-                # 如果解析结果为空，恢复默认配置
+                # 解析结果为空
                 if not self.cfgs:
                     self.logger.warning(f'配置文件 {self.cfg_file} 解析为空，请检查文件')
                     return False
