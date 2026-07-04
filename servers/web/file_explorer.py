@@ -563,7 +563,7 @@ def merge_chunk(dirpath=''):
                 return jsonify({'success': False, 'message': '非法路径, 请检查文件名中是否有特殊字符'}), 400
             if not os.path.exists(cf):
                 clean_chunk_folder(chunk_dir)
-                return jsonify({"success": False, "message": f"分片缺失：{cf}"}), 400
+                return jsonify({"success": False, "message": f"分片缺失：{os.path.basename(cf)}"}), 400
 
         # 生成带层级的完整路径，自动创建中间目录
         base_dir = get_base_directory()
