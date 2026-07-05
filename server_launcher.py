@@ -457,6 +457,9 @@ class ServerManager:
             )
             file_explorer.NEWS_DIR_BASENAME = config_manager.cfgs.get(
                 'news_dir_basename', '新闻')
+            file_explorer.ENABLE_IP_WHITELIST = config_manager.cfgs.get(
+                'file_explorer_enable_ip_whitelist', True
+            )
             file_explorer.ALLOWED_IPS = config_manager.cfgs.get(
                 'file_explorer_allowed_ips', [])
             file_explorer.ALLOWED_WEEKDAYS = config_manager.cfgs.get(

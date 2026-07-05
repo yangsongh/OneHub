@@ -25,6 +25,7 @@ TEXT_FILE_EXTENSIONS = {
 ILLEGAL_FILENAME_CHARS = r'<>:"/\\|?*'
 
 NEWS_DIR_BASENAME = '新闻'
+ENABLE_IP_WHITELIST = True
 ALLOWED_IPS = []
 ALLOWED_WEEKDAYS = []
 UPLOAD_FILE_MIN_FREE_SPACE = 0
@@ -65,7 +66,7 @@ def check_access_permission(client_ip: Optional[str], path: str = '') -> Optiona
         return None
 
     # IP白名单校验
-    if client_ip not in ALLOWED_IPS:
+    if ENABLE_IP_WHITELIST and client_ip not in ALLOWED_IPS:
         logger.warning(f'IP {client_ip} 访问被禁止：不在白名单')
         return {
             'success': False,
@@ -231,7 +232,7 @@ def index():
 def news_page():
     """新闻页路由"""
     client_ip = request.remote_addr
-    if client_ip not in ALLOWED_IPS:
+    if ENABLE_IP_WHITELIST and client_ip not in ALLOWED_IPS:
         logger.warning(f'IP {client_ip} 对新闻播放页的访问被禁止：不在白名单')
         return "禁止访问：IP不在白名单", 403
 
