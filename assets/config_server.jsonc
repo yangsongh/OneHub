@@ -12,7 +12,7 @@
     "ftp_usb_directory": "/mnt/media_rw/sdcard0/", // 根目录
     // 网页服务器配置（网盘+网页控制台+LocalProxy服务端）
     "web_server_threads": 16, // 线程数，越大支持更大的并发数，但也更占用CPU资源
-    "web_server_port": 8888, // 端口号
+    "web_server_port": 80, // 端口号
     // 网页控制台配置
     "web_console_username": "", // 用户名
     "web_console_password": "230728", // 密码
