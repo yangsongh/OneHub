@@ -214,7 +214,7 @@ def index():
     client_ip = request.remote_addr
     permission_err = check_access_permission(client_ip)
     if permission_err:
-        return jsonify(permission_err[0]), permission_err[1]
+        return jsonify(permission_err[0].get('message', '无错误消息')), permission_err[1]
 
     logger.info(f'IP {client_ip} 尝试访问文件浏览器')
 
@@ -333,7 +333,7 @@ def serve_file(filepath=''):
     try:
         permission_err = check_access_permission(client_ip, filepath)
         if permission_err:
-            return jsonify(permission_err[0]), permission_err[1]
+            return jsonify(permission_err[0].get('message', '无错误消息')), permission_err[1]
 
         logger.info(f'IP {client_ip} 尝试获取文件: {filepath}')
 
