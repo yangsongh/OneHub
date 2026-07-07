@@ -5,7 +5,7 @@
     "timeout": 30, // 超时时间（秒）
     "bind_host": "0.0.0.0", // 绑定地址，0.0.0.0表示监听所有接口
     // IP白名单配置
-    "enable_ip_whitelist": true,
+    "enable_ip_whitelist": false,
     "ip_whitelist": [
         "192.168.5.21", // 本地开发：PC
         "26.143.211.218", // 本地开发：PC (VPN)
