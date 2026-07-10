@@ -421,6 +421,20 @@ class ServerManager:
                     # 执行重启命令
                     self.execute_command('restart')
 
+                # 检查是否存在重启标志文件
+                restart_flag = 'RESTART_FLAG'
+                if os.path.exists(restart_flag) and os.path.isfile(restart_flag):
+                    try:
+                        new_name = '_' + restart_flag
+                        os.rename(restart_flag, new_name)
+                    except Exception as e:
+                        logger.warning(f"重启标志文件 {restart_flag} 重命名失败，取消重启: {e}")
+                    else:
+                        logger.info(
+                            f"检测到重启标志文件: {restart_flag}，自动执行服务器重启...")
+                        # 执行重启命令
+                        self.execute_command('restart')
+
                 # 检查是否需要输出系统信息
                 current_time = time.time()
                 system_monitor_freq = float(
