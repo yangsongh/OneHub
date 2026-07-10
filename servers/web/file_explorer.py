@@ -35,6 +35,18 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 CHUNK_SIZE = 50 * 1024 * 1024  # 和前端分片大小保持一致
 CHUNK_TMP_DIR = ".chunk_tmp"  # 分片临时存储目录
 
+def natural_sort_key(s: str):
+    """生成自然排序用的key，数字转int，解决 1,2,8,9,10 正确排序"""
+    import re
+    # 拆分数字/文本块
+    parts = re.split(r'(\d+)', s)
+    key_parts = []
+    for p in parts:
+        if p.isdigit():
+            key_parts.append(int(p))
+        else:
+            key_parts.append(p.lower())
+    return key_parts
 
 def get_base_directory() -> str:
     """从配置中获取基础目录, 增加空值校验"""
@@ -103,8 +115,8 @@ def get_directory_items(full_path: str) -> List[Dict[str, Any]]:
             }
             items.append(item_info)
 
-        # 排序：文件夹在前, 文件在后, 按名称小写排序
-        # items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
+        # 排序规则：文件夹优先，同类型按名称自然数字排序
+        # items.sort(key=lambda x: (x['type'] != 'dir', natural_sort_key(x['name'])))
         return items
     except PermissionError:
         logger.error(f'无权限访问目录：{full_path}')

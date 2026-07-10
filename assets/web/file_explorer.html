@@ -857,6 +857,35 @@
             const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
             return text.replace(/[&<>"']/g, m => map[m]);
         }
+        
+        // 自然排序：数字按数值比较，文本按字符，解决 10>2 问题
+        function naturalSort(aStr, bStr) {
+            // 拆分文本和数字块
+            const splitByNum = (s) => s.match(/(\d+|\D+)/g) || [];
+            const aParts = splitByNum(aStr);
+            const bParts = splitByNum(bStr);
+        
+            const minLen = Math.min(aParts.length, bParts.length);
+            for (let i = 0; i < minLen; i++) {
+                let a = aParts[i];
+                let b = bParts[i];
+                const aIsNum = /^\d+$/.test(a);
+                const bIsNum = /^\d+$/.test(b);
+        
+                if (aIsNum && bIsNum) {
+                    // 都是数字，转数字比较
+                    const numA = parseInt(a, 10);
+                    const numB = parseInt(b, 10);
+                    if (numA !== numB) return numA - numB;
+                } else {
+                    // 普通文本，本地字符比较
+                    const cmp = a.localeCompare(b, undefined, { sensitivity: 'base' });
+                    if (cmp !== 0) return cmp;
+                }
+            }
+            // 前缀相同，短的在前
+            return aParts.length - bParts.length;
+        }
 
         // 递归读取拖拽目录条目，返回 {files: [], emptyDirs: []}
         async function readDataTransferEntries(entries) {
@@ -947,9 +976,12 @@
 
                 let items = data.items || [];
                 items.sort((a, b) => {
+                    // 文件夹永远排在文件前面
                     if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-                    return a.name.localeCompare(b.name);
+                    // 同类型使用自然数字排序
+                    return naturalSort(a.name, b.name);
                 });
+
                 renderFileList(items);
                 renderBreadcrumb();
             } catch (err) {
