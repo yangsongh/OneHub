@@ -515,9 +515,13 @@ def upload_chunk(dirpath=''):
             return jsonify({"success": False, "message": "未上传分片文件"}), 400
 
         # 获取分片文件大小
-        chunk_file.seek(0, 2)
-        file_size = chunk_file.tell()
-        chunk_file.seek(0)  # 重置文件指针, 否则后续保存会是空文件
+        try:
+            chunk_file.seek(0, 2)
+            file_size = chunk_file.tell()
+            chunk_file.seek(0)  # 重置文件指针, 否则后续保存会是空文件
+        except OSError as e:
+            logger.warning(f'单分片文件大小获取失败: {e}')
+            file_size = -1
 
         logger.info(
             f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下上传 {filename} 的第 {chunk_idx} 段分片文件, 子层级: {relative_path}, 大小: {file_size}字节')
