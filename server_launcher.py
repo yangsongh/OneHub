@@ -378,8 +378,15 @@ class ServerManager:
 
             # 创建FTP服务器并运行
             address = ("0.0.0.0", config_manager.cfgs.get('ftp_port', 2121))
-            FTPHandler.authorizer = authorizer
-            server = FTPServer(address, FTPHandler)
+            
+            handler = FTPHandler
+            handler.authorizer = authorizer
+            
+            # 被动模式配置
+            handler.masquerade_address = config_manager.cfgs.get('ftp_pasv_address', '192.168.5.20')  # PASV响应的IP
+            handler.passive_ports = config_manager.cfgs.get('ftp_pasv_ports', range(2020, 2021))  # PASV响应的端口
+            
+            server = FTPServer(address, handler)
             server.serve_forever()
 
         except Exception as e:
