@@ -384,7 +384,7 @@ class ServerManager:
             
             # 被动模式配置
             handler.masquerade_address = config_manager.cfgs.get('ftp_pasv_address', '192.168.5.20')  # PASV响应的IP
-            handler.passive_ports = config_manager.cfgs.get('ftp_pasv_ports', range(2020, 2021))  # PASV响应的端口
+            handler.passive_ports = config_manager.cfgs.get('ftp_pasv_ports', range(2020, 2021))  # PASV响应的端口范围
             
             server = FTPServer(address, handler)
             server.serve_forever()
