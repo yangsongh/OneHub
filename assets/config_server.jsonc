@@ -2,7 +2,9 @@
     // 系统监控频率
     "system_monitor_freq": 60, // 定时输出系统信息 (单位: s)
     // FTP服务器配置（主用户，服务器内部储存）
-    "ftp_port": 2121, // 端口号
+    "ftp_port": 2121, // 控制连接端口号
+    "ftp_pasv_address": "192.168.5.20", // 被动模式：数据连接IP地址
+    "ftp_pasv_ports": [2020], // 被动模式：数据连接端口范围
     "ftp_username": "admin", // 用户名
     "ftp_password": "230728", // 密码
     "ftp_directory": "/", // 根目录
