@@ -3,9 +3,8 @@
 > 一站式网络服务管理平台 —— 文件共享、代理服务、新闻下载、远程管理
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.1+-black?logo=flask)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com/your-repo)
+[![Flask](https://img.shields.io/badge/Flask-3.1+-black?logo=flask)](https://flask.palletsprojects.com/)
 
 ---
 
