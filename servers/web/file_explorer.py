@@ -35,6 +35,7 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 CHUNK_SIZE = 50 * 1024 * 1024  # 和前端分片大小保持一致
 CHUNK_TMP_DIR = ".chunk_tmp"  # 分片临时存储目录
 
+
 def natural_sort_key(s: str):
     """生成自然排序用的key，数字转int，解决 1,2,8,9,10 正确排序"""
     import re
@@ -47,6 +48,7 @@ def natural_sort_key(s: str):
         else:
             key_parts.append(p.lower())
     return key_parts
+
 
 def get_base_directory() -> str:
     """从配置中获取基础目录, 增加空值校验"""
@@ -197,10 +199,10 @@ def convert_and_send_text_file(filepath: str) -> Response:
         encoding = detected.get('encoding', 'utf-8')
         confidence = detected.get('confidence', 0.0)
 
-        # 低置信度 / 非UTF8, 使用ANSI兜底转UTF8
+        # 低置信度 / 非UTF8, 使用GBK兜底转UTF8
         if confidence < 0.7 or encoding is None:
-            encoding = 'ansi'
-            logger.warning(f'文件 {filepath} 编码检测置信度低({confidence}), 使用ANSI兜底')
+            encoding = 'gbk'
+            logger.warning(f'文件 {filepath} 编码检测置信度低({confidence}), 使用GBK兜底')
 
         # UTF-8 系列直接返回原文件, 无需转码
         if encoding and encoding.lower() in ("utf-8", "utf-8-sig") and confidence >= 0.7:
@@ -600,7 +602,7 @@ def merge_chunk(dirpath=''):
                         'success': False,
                         'message': '非法路径, 请检查文件名中是否有特殊字符'
                     }), 400
-                
+
                 # 分段读取分片，循环写入目标文件
                 with open(chunk_path, "rb") as in_f:
                     while True:
