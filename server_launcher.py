@@ -378,14 +378,16 @@ class ServerManager:
 
             # 创建FTP服务器并运行
             address = ("0.0.0.0", config_manager.cfgs.get('ftp_port', 2121))
-            
+
             handler = FTPHandler
             handler.authorizer = authorizer
-            
+
             # 被动模式配置
-            handler.masquerade_address = config_manager.cfgs.get('ftp_pasv_address', '192.168.5.20')  # PASV响应的IP
-            handler.passive_ports = config_manager.cfgs.get('ftp_pasv_ports', range(2020, 2021))  # PASV响应的端口范围
-            
+            handler.masquerade_address = config_manager.cfgs.get(
+                'ftp_pasv_address', '192.168.5.20')  # PASV响应的IP
+            handler.passive_ports = config_manager.cfgs.get(
+                'ftp_pasv_ports', range(2020, 2021))  # PASV响应的端口范围
+
             server = FTPServer(address, handler)
             server.serve_forever()
 
@@ -435,7 +437,8 @@ class ServerManager:
                         new_name = '_' + restart_flag
                         os.rename(restart_flag, new_name)
                     except Exception as e:
-                        logger.warning(f"重启标志文件 {restart_flag} 重命名失败，取消重启: {e}")
+                        logger.warning(
+                            f"重启标志文件 {restart_flag} 重命名失败，取消重启: {e}")
                     else:
                         logger.info(
                             f"检测到重启标志文件: {restart_flag}，自动执行服务器重启...")
@@ -466,7 +469,7 @@ class ServerManager:
             tempfile.tempdir = tmp_dir
 
             self.flask_app = Flask(__name__)
-            max_upload_size = self.flask_app.config['MAX_CONTENT_LENGTH'] = config_manager.cfgs.get(
+            max_upload_size = config_manager.cfgs.get(
                 'max_upload_size', 10 * 1024 * 1024 * 1024
             )
 
