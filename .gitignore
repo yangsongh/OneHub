@@ -4,4 +4,4 @@ __pycache__
 .VSCodeCounter
 .venv
 assets/localproxy
-assets/_RESTART_FLAG
+assets/cfgs_bkup/
