@@ -1,10 +1,10 @@
-﻿import os
+import os
 import re
 import json
 
 from functools import wraps
-from utils.utils_lib import LoggerManager
-from flask import Blueprint, Response, request, jsonify, send_from_directory
+from utils.utils_lib import LoggerManager, Utils
+from flask import Blueprint, Response, request, jsonify, send_file
 
 WEB_FOLDER = 'localproxy'
 ICONS_FOLDER = os.path.join(WEB_FOLDER, 'icons')
@@ -52,12 +52,15 @@ def require_auth(f):
 @require_auth
 def index():
     """主页内容"""
-    index_path = os.path.join(WEB_FOLDER, 'index.html')
-    logger.info(f"IP {request.remote_addr} 访问受保护的主页")
+    logger.info(f"IP {request.remote_addr} 尝试访问受保护的主页")
 
-    if os.path.exists(index_path):
-        return send_from_directory(WEB_FOLDER, 'index.html')
+    index_file = os.path.join(
+        Utils.get_bundle_dir(), WEB_FOLDER, 'index.html'
+    )
+    if os.path.exists(index_file) and os.path.isfile(index_file):
+        return send_file(index_file)
     else:
+        logger.warning("主页文件未找到")
         return "主页文件未找到，请联系管理员", 404
 
 
@@ -183,7 +186,9 @@ def download_file(filename):
     GET /downloads/<filename>
     提供 web/downloads 文件夹下的文件下载服务。
     """
-    downloads_folder = os.path.join(WEB_FOLDER, 'downloads')
+    downloads_folder = os.path.join(
+        Utils.get_bundle_dir(), WEB_FOLDER, 'downloads'
+    )
     target_file = os.path.join(downloads_folder, filename)
     client_ip = request.remote_addr
 
@@ -191,12 +196,10 @@ def download_file(filename):
         f"IP {client_ip} 请求下载文件：{filename}")
 
     if os.path.exists(target_file) and os.path.isfile(target_file):
-        logger.info(f"成功为 {client_ip} 提供下载文件：{target_file}")
-        return send_from_directory(downloads_folder, filename, as_attachment=True)
+        return send_file(target_file, as_attachment=True)
     else:
-        err = f"文件未找到：{target_file}"
-        logger.warning(err)
-        return err, 404
+        logger.warning(f"文件未找到：{target_file}")
+        return f"文件未找到：{target_file}", 404
 
 
 @localproxy_server.route('/icons/<path:filename>')
@@ -205,19 +208,19 @@ def serve_icon(filename):
     GET /icons/<filename>
     提供 web/icons 文件夹下的图标或静态资源访问服务。
     """
-    target_file = os.path.join(ICONS_FOLDER, filename)
+    target_file = os.path.join(
+        Utils.get_bundle_dir(), ICONS_FOLDER, filename
+    )
     client_ip = request.remote_addr
 
     logger.info(
         f"IP {client_ip} 请求图标资源：{filename}")
 
     if os.path.exists(target_file) and os.path.isfile(target_file):
-        logger.info(f"成功为 {client_ip} 返回图标资源：{target_file}")
-        return send_from_directory(ICONS_FOLDER, filename, as_attachment=False)
+        return send_file(target_file, as_attachment=False)
     else:
-        err = f"图标资源未找到：{target_file}"
-        logger.warning(err)
-        return err, 404
+        logger.warning(f"图标资源未找到：{target_file}")
+        return f"图标资源未找到：{target_file}", 404
 
 
 @localproxy_server.route('/noticeboard/<path:filename>')
@@ -226,15 +229,15 @@ def serve_notice_file(filename):
     GET /noticeboard/<filename>
     提供 web/noticeboard 文件夹下的文件访问服务。
     """
-    target_file = os.path.join(NOTICE_BOARD_FOLDER, filename)
+    target_file = os.path.join(
+        Utils.get_bundle_dir(), NOTICE_BOARD_FOLDER, filename
+    )
     client_ip = request.remote_addr
 
     logger.info(f"IP {client_ip} 请求公告板文件: {filename}")
 
     if os.path.exists(target_file) and os.path.isfile(target_file):
-        logger.info(f"成功为 {client_ip} 返回公告板文件: {target_file}")
-        return send_from_directory(NOTICE_BOARD_FOLDER, filename, as_attachment=False)
+        return send_file(target_file, as_attachment=False)
     else:
-        err = f"公告板文件未找到: {target_file}"
-        logger.warning(err)
-        return err, 404
+        logger.warning(f"公告板文件未找到: {target_file}")
+        return f"公告板文件未找到: {target_file}", 404
