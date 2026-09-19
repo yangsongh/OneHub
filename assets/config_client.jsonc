@@ -3,14 +3,14 @@
     "version": {
         /* 自动更新配置 */
         "auto_update": true, // 是否自动更新
-        "zip_url": "http://172.16.192.1/localproxy/downloads/LocalProxyPortable.zip", // 压缩包下载链接
+        "zip_url": "http://172.16.192.1:8888/localproxy/downloads/LocalProxyPortable.zip", // 压缩包下载链接
         "zip_pwd": "", // 压缩包密码
         "extract_path": "..", // 解压路径
         /* 客户端版本更新检测配置 */
-        "latest_vercode": 202606171, // 最新版本号
+        "latest_vercode": 202609111, // 最新版本号
         // 更新内容
         "update_content": "",
-        "update_url": "http://172.16.192.1/localproxy", // 更新链接
+        "update_url": "http://172.16.192.1:8888/localproxy", // 更新链接
         "website_pwd": "yshnb666 (用户名留空)", // 更新提示弹窗上的网站密码
         "force_update": true // 是否强制更新
     },
@@ -21,30 +21,39 @@
         // 浏览器数据目录
         "user_data_dir": "%APPDATA%/LocalProxyEdgeData",
         // 浏览器主页
-        "browser_homepage": "http://172.16.192.1:80",
+        "browser_homepage": "http://172.16.192.1:8888",
         // "browser_homepage": "http://172.16.192.1:8888/localproxy/noticeboard/index.html",
-        // "browser_homepage": "http://172.16.192.1/api/file/%E5%A4%A7%E5%AD%A6%E4%B8%93%E4%B8%9A%E6%97%A9%E7%9F%A5%E9%81%93/%E6%99%AE%E9%80%9A%E9%AB%98%E7%AD%89%E5%AD%A6%E6%A0%A1%E6%9C%AC%E7%A7%91%E4%B8%93%E4%B8%9A%E7%9B%AE%E5%BD%952025.pdf",
+        // "browser_homepage": "http://172.16.192.1:8888/api/file/%E5%A4%A7%E5%AD%A6%E4%B8%93%E4%B8%9A%E6%97%A9%E7%9F%A5%E9%81%93/%E6%99%AE%E9%80%9A%E9%AB%98%E7%AD%89%E5%AD%A6%E6%A0%A1%E6%9C%AC%E7%A7%91%E4%B8%93%E4%B8%9A%E7%9B%AE%E5%BD%952025.pdf",
         // "browser_homepage": "https://www.bilibili.com",
         // 用于测试代理服务器是否在线的测试URL
         "test_url": "http://connect.rom.miui.com/generate_204"
     },
-    "expiry_date": "2026-07-10 00:00:00", // 软件到期时间
+    "expiry_date": "2027-02-01 00:00:00", // 软件到期时间
     /* 已激活设备与密码 */
     "activated_devices_passwords": {
         "A160217100791": "", // 本地开发：PC
         "1429A5405801": "", // 本地开发：MAC
-        "YMB1256KA21295029K": "", // 01
-        "YMB1256KA21295066M": "", // 02
-        "LC202206250243": "", // 03
-        "YMB1256KA2129505Z9": "", // 04
-        "YMB1256KA21295025A": "", // 07
-        "F5430703038700370183": "", // 08
-        "AB075Z12403152": "", // 09
-        "DF5B0703053700060202": "", // 10
-        "K29368J006117": "", // 12
-        "AB075Z12403136": "", // 13
-        "K35115J018155": "", // 18
-        "01C90703051300059763": "" // 2楼走班
+        "": "ntrlcx9178", // 01
+        "": "ntrlcx9178", // 02
+        "": "ntrlcx9178", // 03
+        "": "ntrlcx9178", // 04
+        "": "ntrlcx9178", // 05
+        "": "ntrlcx9178", // 06
+        "": "ntrlcx9178", // 07
+        "K35115J018126": "ntrlcx9178", // 08
+        "9C0D070303E300319523": "ntrlcx9178", // 09
+        "": "ntrlcx9178", // 10
+        "": "ntrlcx9178", // 11
+        "LDU053J011505": "ntrlcx9178", // 12
+        "MEQ4032008963": "乐乐廖晨", // 13
+        "E4C007091C8C00280662": "ntrlcx9178", // 14
+        "MEQ4032008690": "ntrlcx9178", // 15
+        "": "ntrlcx9178", // 16
+        "MEQ4032010886": "ntrlcx9178", // 17
+        "": "ntrlcx9178", // 18
+        "": "ntrlcx9178", // 19
+        "": "ntrlcx9178", // 20
+        "": "ntrlcx9178" // 4楼走班
     },
     /* 代理服务器 */
     "proxy_servers": [
