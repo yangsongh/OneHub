@@ -416,9 +416,13 @@ def upload(dirpath=''):
         filename = sanitize_filename(file.filename)
 
         # 获取文件大小
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(0)  # 重置文件指针, 否则后续保存会是空文件
+        try:
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(0)  # 重置文件指针, 否则后续保存会是空文件
+        except OSError as e:
+            logger.warning(f'文件大小获取失败: {e}')
+            file_size = -1
 
         logger.info(
             f'IP {client_ip} 尝试在 {"根" if not dirpath else dirpath} 下上传文件: {filename}, 大小: {file_size}字节')
