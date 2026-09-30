@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author : yangsongh
 # @File : utils_lib.py
-# @Version : 1.0.8
+# @Version : 1.0.9
 
 import os
 import re
@@ -139,44 +139,85 @@ class ConfigManager:
         self.cfg_lock = threading.RLock()
 
     # 内部工具：安全移除JSONC注释（区分字符串内外，不破坏路径/文本）
-    def _remove_json_comments(self, text: str) -> str:
+    def _clean_jsonc(self, text: str) -> str:
+        r"""
+        清理 JSONC：
+        1. 移除 // 和 /* */ 注释（区分字符串内外）
+        2. 移除非法控制字符
+        3. 修复字符串内的裸反斜杠（\ 后面不是合法转义字符时，补成 \\）
+        """
         result = []
         in_str = False
         in_block_comment = False
         i = 0
         n = len(text)
+    
+        # JSON 合法转义字符
+        valid_escape = set('"\\/bfnrtu')
+    
         while i < n:
             char = text[i]
-            next_char = text[i+1] if i + 1 < n else ''
-
+            next_char = text[i + 1] if i + 1 < n else ''
+    
             if in_block_comment:
                 if char == '*' and next_char == '/':
                     in_block_comment = False
                     i += 1
-            elif in_str:
+                i += 1
+                continue
+    
+            if in_str:
                 if char == '\\':
-                    result.append(char)
-                    result.append(next_char)
-                    i += 1
+                    # 字符串内的反斜杠：判断是否合法转义
+                    if next_char in valid_escape:
+                        # 合法转义，原样保留两个字符
+                        result.append(char)
+                        result.append(next_char)
+                        i += 2
+                        continue
+                    else:
+                        # 裸反斜杠，补成 \\
+                        result.append('\\\\')
+                        i += 1
+                        continue
                 elif char == '"':
                     in_str = False
-                result.append(char)
-            else:
-                if char == '/' and next_char == '*':
-                    in_block_comment = True
-                    i += 1
-                elif char == '/' and next_char == '/':
-                    # 单行注释，跳到换行
-                    while i < n and text[i] not in ('\n', '\r'):
-                        i += 1
-                    continue
-                elif char == '"':
-                    in_str = True
                     result.append(char)
+                elif ord(char) < 0x20:
+                    # 字符串内的非法控制字符，跳过
+                    pass
                 else:
                     result.append(char)
+                i += 1
+                continue
+    
+            # 非字符串、非注释状态
+            if char == '/' and next_char == '*':
+                in_block_comment = True
+                i += 2
+                continue
+            elif char == '/' and next_char == '/':
+                # 单行注释，跳到行尾
+                while i < n and text[i] not in ('\n', '\r'):
+                    i += 1
+                continue
+            elif char == '"':
+                in_str = True
+                result.append(char)
+            elif ord(char) < 0x20 and char not in ('\n', '\r', '\t'):
+                # 字符串外的非法控制字符，跳过
+                pass
+            else:
+                result.append(char)
             i += 1
-        return ''.join(result)
+
+        cleaned = ''.join(result)
+        # 按行清理：去行尾空白 + 去纯空白行
+        lines = cleaned.splitlines()
+        lines = [ln.rstrip() for ln in lines]
+        lines = [ln for ln in lines if ln.strip() != '']
+        cleaned = '\n'.join(lines)
+        return cleaned
 
     def load_configs(self) -> bool:
         """加载配置文件"""
@@ -191,17 +232,8 @@ class ConfigManager:
                 with open(self.cfg_file, 'r', encoding='utf-8') as f:
                     raw_content = f.read()
 
-                # 1. 安全删除注释
-                no_comment = self._remove_json_comments(raw_content)
-                # 2. 清除非法ASCII控制字符（解决 Invalid control character）
-                content_clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\r]', '', no_comment)
-                # 3. 全局修复裸反斜杠 \ → \\，再修正重复转义
-                content_clean = content_clean.replace("\\", "\\\\")
-                content_clean = re.sub(r'\\\\(["\\/bfnrt])', r'\\\1', content_clean)
-                # 4. 剩下多余的连续双斜杠统一修正为单层转义斜杠
-                content_clean = re.sub(r'\\\\', r'\\', content_clean)
-                # 5. 合并多余空行
-                content_clean = re.sub(r'\n+', '\n', content_clean).strip()
+                # 安全删除注释
+                content_clean = self._clean_jsonc(raw_content)
 
                 # 解析标准JSON
                 self.cfgs = json.loads(content_clean)
