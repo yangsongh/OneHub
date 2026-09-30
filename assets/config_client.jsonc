@@ -7,7 +7,7 @@
         "zip_pwd": "", // 压缩包密码
         "extract_path": "..", // 解压路径
         /* 客户端版本更新检测配置 */
-        "latest_vercode": 202609201, // 最新版本号
+        "latest_vercode": 202610012, // 最新版本号
         // 更新内容
         "update_content": "温馨提示：为了降低风险，以后只有周末开网络。",
         "update_url": "", // 更新链接
