@@ -78,7 +78,7 @@
     "news_retry_interval_min": 30, // 新闻重试间隔 (min)
     "news_run_immediately": false, // 启动服务器后是否立即下载新闻
     // LocalProxy服务器配置
-    "localproxy_vercode": 202609111, // 版本号
+    "localproxy_vercode": 202610011, // 版本号
     "localproxy_username": "", // 官网用户名
     "localproxy_password": "yshnb666" // 官网密码
 }
