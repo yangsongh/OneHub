@@ -244,6 +244,8 @@
 
     <script>
         let ws = null;
+        let isReconnecting = false;   // 重连守卫
+        let reconnectTimerId = null;  // 重连定时器ID（便于取消）
         let currentLineCount = 0;
         let autoScroll = true;  // 是否自动滚动到底部
         let autoScrollLockCount = 0; // 滚动锁计数器，批量输出叠加
@@ -495,8 +497,38 @@
             currentInputBuffer = '';
         }
 
+        // 统一的重连调度入口：保证同一时间只有一个重连任务
+        function scheduleReconnect() {
+            // 已有重连任务在排队，直接返回，避免重复调度
+            if (isReconnecting) {
+                console.log('重连任务已存在，跳过本次调度');
+                return;
+            }
+            isReconnecting = true;
+            console.log('将在 3 秒后尝试重连...');
+            reconnectTimerId = setTimeout(() => {
+                isReconnecting = false;
+                reconnectTimerId = null;
+                connectWebSocket();
+            }, 3000);
+        }
+
         // 建立WebSocket连接
         async function connectWebSocket() {
+            // 若已有旧连接，先主动关闭，避免僵尸连接堆积
+            if (ws) {
+                try {
+                    ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; // 解绑回调
+                    if (ws.readyState === WebSocket.OPEN ||
+                        ws.readyState === WebSocket.CONNECTING) {
+                        ws.close();
+                    }
+                } catch (e) {
+                    console.warn('关闭旧连接时出错:', e);
+                }
+                ws = null;
+            }
+
             try {
                 const configResponse = await fetch('/console/get_websocket_config');
                 if (!configResponse.ok) {
@@ -511,6 +543,12 @@
                 ws.onopen = function () {
                     console.log('WebSocket连接已建立');
                     updateConnectionStatus(true, '已连接');
+                    // 连接成功，清除重连守卫（若上次重连定时器还在排队，取消它）
+                    isReconnecting = false;
+                    if (reconnectTimerId) {
+                        clearTimeout(reconnectTimerId);
+                        reconnectTimerId = null;
+                    }
                 };
 
                 ws.onmessage = function (event) {
@@ -548,22 +586,28 @@
                     }
                 };
 
+                // onerror 只更新状态，不做重连（onclose 会紧随其后统一处理）
                 ws.onerror = function (error) {
                     console.error('WebSocket错误:', error);
                     updateConnectionStatus(false, '连接错误');
-                    setTimeout(connectWebSocket, 3000); // 3秒后重连
                 };
 
+                // onclose 是重连的唯一入口
                 ws.onclose = function (event) {
                     console.log('WebSocket连接已关闭', event.code, event.reason);
-                    updateConnectionStatus(false, '连接已关闭');
-                    setTimeout(connectWebSocket, 3000); // 3秒后重连
+                    // 只有非正常关闭（code !== 1000）才提示"断开"，正常关闭可不提示
+                    if (event.code !== 1000) {
+                        updateConnectionStatus(false, '连接已关闭');
+                    } else {
+                        updateConnectionStatus(false, '连接已关闭（正常）');
+                    }
+                    scheduleReconnect();
                 };
 
             } catch (error) {
                 console.error('建立WebSocket连接失败:', error);
                 updateConnectionStatus(false, '连接失败');
-                setTimeout(connectWebSocket, 3000); // 3秒后重连
+                scheduleReconnect();
             }
         }
 
